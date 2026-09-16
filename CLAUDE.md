@@ -4,35 +4,47 @@
 
 ## 这个仓库是什么
 
-`capsage` 是一个个人工作目录，包含两个**相互独立、互不相关的 Chrome 扩展**，各自是独立的 git 仓库，拥有各自的历史记录。两者之间没有共享的代码、构建系统或工具链——请将它们视为恰好放在同一目录下的两个独立项目。这个顶层目录本身不是 git 仓库。
+**EchoSage** —— 一个 Chrome 扩展（MV3），把两个前身扩展合并成一个产品：捕获标签页音频做实时转写、翻译成中文、以双轨字幕呈现，覆盖"任意网站的直播实时字幕"和"TikTok 视频字幕/总结/仿写"两个场景。
 
-- `echocap/` — 面向 TikTok Live（以及其他标签页音频）的实时西班牙语→中文直播字幕悬浮层。
-- `tiktok-caption-studio/` — TikTok 视频详情页工具，用于字幕、翻译、摘要以及橱窗链接展示。
+**当前状态：合并尚未开始写代码。** 这个仓库目前只有文档（规格、领域词汇、ADR），扩展本身一行代码都还没有。真正的代码迁移按 `.scratch/echosage-merge/` 下的票逐张推进。
 
-请始终在相应子项目目录内运行命令，而不是在此根目录下运行。
+### 目录里的两个前身项目
 
-## echocap/
+`echocap/` 和 `tiktok-caption-studio/` 是两个前身扩展，各自是**独立的嵌套 git 仓库**（有自己的 `.git` 和提交历史），不属于本仓库的跟踪范围。它们是**迁移的来源材料**，不是本仓库的代码。合并完成后它们会被移出或归档。
 
-一个 Chrome 扩展（MV3），捕获标签页音频，通过 AssemblyAI 实时转写西班牙语语音，在设备端（Chrome 内置 Translator API / Gemini Nano）将其翻译为中文，并以浮动的双轨字幕悬浮层形式渲染。
+- **`echocap/`** —— 面向任意标签页的实时西语→中文直播字幕悬浮层。已经跑通的能力：`tabCapture` → 离屏文档双 AudioContext → AudioWorklet → AssemblyAI v3 流式转写 → Chrome 内置 Translator（Gemini Nano）本地翻译 → content script 悬浮双轨字幕。它有自己的 `CLAUDE.md`、`CONTEXT.md` 和 `docs/brief.md`——迁移它的代码前先读这三份，尤其是 `CLAUDE.md` 里那一串"非显而易见的不变量"（同步 dispatch 防重复捕获、零增益节点保活 worklet、offscreen 里没有 `chrome.storage` 等），那些注释记录的是踩过的坑。注意 `echocap/AGENT.md` 是过时副本，以 `echocap/CLAUDE.md` 为准。
+- **`tiktok-caption-studio/`** —— TikTok 视频详情页工具，无构建步骤的纯 JS/HTML/CSS。`inject.js` 在 MAIN world 于 `document_start` 打补丁 `fetch`/`XHR` 拦截 TikTok 自己的接口响应（因为页面水合数据只覆盖首个视频，后续视频只出现在各自的 API 响应里）；`content.js` 在隔离世界管页内 UI 和"当前活跃视频"追踪；`background.js` 是唯一持有 API Key、调用外部接口的地方；`offscreen.js` 存在纯粹因为 MV3 service worker 没有 `MediaRecorder`。
 
-**该子项目有自己的 `CLAUDE.md`，位于 `echocap/CLAUDE.md`——在改动其代码之前，请先阅读该文件了解命令、架构、MV3 离屏文档（offscreen document）/AudioWorklet 设计以及非显而易见的不变量。** 它还有 `echocap/CONTEXT.md`（领域词汇表）和 `echocap/docs/adr/`（编号的架构决策记录）——在此进行架构层面的改动之前请先查阅这些文件。
+**这两份 ADR 编号已经并入本仓库**：`docs/adr/0001`–`0007` 来自 echocap，`0008`–`0010` 是本次合并新增的。迁移 echocap 代码时不要再把它的 `docs/adr/` 重复搬一遍。
 
-注意：`echocap/AGENT.md` 是早期版本 `echocap/CLAUDE.md` 的过时副本（早于 AssemblyAI/双 AudioContext 相关工作）——请优先参考 `echocap/CLAUDE.md`。
+## 合并后的目标架构
 
-## tiktok-caption-studio/
+以下是**已决定但尚未实现**的结构，权威来源是 `.scratch/echosage-merge/spec.md`：
 
-一个 Chrome 扩展（MV3，无构建步骤——直接加载纯 JS/HTML/CSS，没有 `package.json`，未配置 lint/test 工具链），运行于 TikTok 视频页面上。它展示封面图和互动数据，展示 TikTok 橱窗商品链接，获取/转写字幕，翻译字幕，并通过兼容 OpenAI 的 API 生成摘要/改写内容。
+- 一个扩展、一个 `manifest.json`、一个工具栏图标、一个 popup（"直播实时" / "视频字幕" 两个 Tab）、一份共享设置。
+- 三个 content script 入口：`inject.js`（TikTok-only、MAIN world、不进 bundle）、`content-tiktok.js`（TikTok-only、隔离世界）、`content-overlay.js`（`<all_urls>`、隔离世界、悬浮层）。
+- 转写统一走 AssemblyAI 流式；Whisper 和微软 Azure Translator **不迁移过来**（见 ADR-0008）。
+- 翻译引擎两个：Chrome 内置 nano（默认，即时翻译）和 AI 模型（整段批量翻译）——**但引擎选择权只属于视频字幕场景**，直播实时场景固定本地翻译，不提供云端选项（ADR-0003 + ADR-0008）。另有一个正交的「译文触发时机」轴（停顿 / 句子，ADR-0007），两个场景共享。
+- 构建：esbuild，`shared/` 放公共模块，产物进 `dist/`；`core/` 纯逻辑模块不经过 bundler，被 Node 内置 test runner 直接 import（见 ADR-0010）。
+- **`core/` 是本项目唯一的测试 seam**：任何不碰浏览器 API 的状态机/判定逻辑都放这里，用 `node --test` 测，不 mock 浏览器全局对象。
 
-手动测试时加载未打包扩展：`chrome://extensions` → 启用开发者模式 → "加载已解压的扩展程序" → 选择 `tiktok-caption-studio/`。
+## 文档去哪找
 
-### 架构
+- `CONTEXT.md` —— 合并后的领域词汇表（场景/音频与转写/翻译/呈现）。动任何跟这些概念相关的代码前先读它，用里面的词，不要另造同义词。
+- `docs/adr/` —— 编号的架构决策记录。做架构层面的改动前先查，尤其是 `0003`（只用内置 Translator）、`0005`（花钱保险丝）、`0007`（译文触发时机）、`0008`–`0010`（本次合并）。
+- `.scratch/echosage-merge/spec.md` —— 本次合并的完整规格（问题/方案/user stories/实现决定/测试决定/范围外）。
+- `Popup 合并设计.dc.html` —— 前端 UI 设计稿（popup 三态、设置页四个分区、侧边栏两个子页）。顶层这份是最新的、含侧边栏；如果在 `echocap/` 下看到同名文件，那是旧副本，不要参考。
 
-- **`inject.js`** 在页面的 MAIN world 中于 `document_start` 阶段运行。它对 `window.fetch` 和 `XMLHttpRequest.prototype.open` 打补丁，以拦截 TikTok 自身的 `/api/item|recommend|post|related|search|...` 响应（以及首次加载时的 `__UNIVERSAL_DATA_FOR_REHYDRATION__` 水合数据块），并通过 `postMessage` 将解析后的视频记录发送给 `content.js`。这样做是必要的，因为 TikTok 的水合数据只覆盖首个展示的视频——后续视频（信息流滚动、应用内导航）只出现在各自的 API 响应中。商品数据是从 `item.anchors[n].extra` 中嵌套的二次 JSON 编码数据块中解出的。
-- **`content.js`** 在隔离世界（isolated world）中于 `document_idle` 阶段运行。它负责页内 UI（封面/数据卡片、字幕抽屉、商品弹出层），跟踪"当前活跃"视频 id（存在 `/video/<id>` URL 时以其为准，否则以视口内正在播放且占比最大的 `<video>` 所在卡片为准），并驱动字幕获取 → 翻译 → 摘要/改写这条流程。自动行为（自动获取字幕 / 视频切换时自动获取并翻译）由 `autoCaptionMode` 设置项控制。
-- **`background.js`**（MV3 service worker）是唯一被允许调用外部 API 并持有兼容 OpenAI 的 `apiKey` 的部分。它负责聊天补全（摘要/改写/AI 翻译）、Whisper 转写（`/v1/audio/transcriptions`）、微软/Azure Translator 调用、原生字幕获取，以及标签页音频录制的编排。工具栏按钮通过消息切换 `content.js` 中的页内面板，或在非 TikTok 页面打开选项页；如果内容脚本尚未加载（扩展在页面加载后安装/重载），则回退为使用 `chrome.scripting.executeScript`/`insertCSS`。
-- **`offscreen.js`** 的存在纯粹是因为 MV3 service worker 没有 `MediaRecorder`/`getUserMedia`。`background.js` 按需创建离屏文档（`ensureOffscreen`），并通过 `chrome.runtime.sendMessage({ type: "offscreen-record", streamId, duration })` 让它录制标签页音频（`tabCapture` 流 → `MediaRecorder`，时长上限 3 秒–120 秒），并返回原始字节数据以上传给 Whisper。
-- **字幕来源优先级**：优先使用原生 WebVTT 字幕（`video.claInfo`/`subtitleInfos`）；若该视频类型没有原生字幕轨道，"获取字幕"会录制 30 秒的标签页音频并发送给 `/v1/audio/transcriptions`，使用 `verbose_json` 分段输出。自动获取模式会在无需点击的情况下触发此录制（以及随之产生的费用）——详见设置项说明。
-- **翻译**功能在设置中可在两种引擎间切换，二者没有共享代码路径："AI model" 要求聊天模型在一次调用中返回一个 JSON 格式的翻译字符串数组（`background.js` 中的 `translateWithAi`）；"Microsoft" 将原始字幕数组批量发送给 Azure Translator 的 `/translate`（`translateWithMicrosoft`），速度更快且不受 LLM JSON 解析失败的影响，但需要单独的 Azure Translator 资源/密钥（若非 Global 资源，还需要区域信息）。
-- 所配置的 Base URL 必须同时提供 `/v1/chat/completions` 和 `/v1/audio/transcriptions` 服务——例如 DeepSeek 官方 API 只提供前者，因此若不搭配一个兼容 Whisper 的网关，转写功能将无法使用。
+## Agent skills
 
-`lib/`、`sidepanel/` 和 `tests/` 目前只是占位空目录——尚无任何代码。
+### Issue tracker
+
+Issues 和 specs 以 markdown 文件形式存在 `.scratch/<feature-slug>/` 下——没有远程 issue tracker。见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+五个规范角色，作为标签字符串原样使用（`needs-triage`、`needs-info`、`ready-for-agent`、`ready-for-human`、`wontfix`），记为每个 issue 文件里的 `Status:` 行。见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+单一 context：仓库根的 `CONTEXT.md` + `docs/adr/`。见 `docs/agents/domain.md`。
