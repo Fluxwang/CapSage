@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>EchoSage 设置</title>
+  <style>
+    :root { --accent: #168ea3; color: #1d1b18; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; }
+    * { box-sizing: border-box; }
+    body { min-width: 760px; margin: 0; background: #f7f6f3; }
+    button, input, select { font: inherit; }
+    .layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); min-height: 100vh; }
+    aside { padding: 27px 16px; border-right: 1px solid #e3e0da; background: #fff; }
+    .brand { display: flex; align-items: center; gap: 8px; margin: 0 9px 28px; font-size: 14px; font-weight: 700; }
+    .mark { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 7px; color: #fff; background: var(--accent); font-size: 12px; }
+    .nav { display: grid; gap: 4px; }
+    .nav button { width: 100%; padding: 9px 10px; border: 0; border-radius: 8px; color: #6f6a63; background: transparent; cursor: pointer; text-align: left; font-size: 13px; }
+    .nav button[aria-selected="true"] { color: #1d1b18; background: #edf7f8; font-weight: 650; }
+    main { width: min(760px, 100%); padding: 38px 40px 64px; }
+    .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
+    h1 { margin: 0; font-size: 24px; }
+    h2 { margin: 0 0 6px; font-size: 17px; }
+    h3 { margin: 0; font-size: 13px; }
+    p { margin: 0; }
+    .subtle, .hint { color: #7c7770; font-size: 12px; line-height: 1.65; }
+    .saved { padding: 7px 10px; border-radius: 999px; color: var(--accent); background: #edf7f8; font-size: 11px; white-space: nowrap; }
+    .section[hidden] { display: none; }
+    .section { display: grid; gap: 16px; }
+    .card { display: grid; gap: 12px; padding: 17px; border: 1px solid #e3e0da; border-radius: 12px; background: #fff; }
+    .shared-card { margin-bottom: 18px; border-left: 3px solid var(--accent); }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .row > input { flex: 1; }
+    .field { display: grid; gap: 6px; color: #3b372f; font-size: 13px; font-weight: 600; }
+    .field input, .field select { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid #d8d4ce; border-radius: 8px; color: #1d1b18; background: #fff; font-size: 13px; font-weight: 400; }
+    .field input:focus, .field select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 28%, transparent); border-color: var(--accent); }
+    .button { min-height: 36px; padding: 0 13px; border: 0; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 650; }
+    .primary { color: #fff; background: var(--accent); }
+    .secondary { color: #3b372f; background: #f0eeea; }
+    .status { min-height: 20px; padding: 9px 10px; border-radius: 8px; color: #6f6a63; background: #faf9f7; font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
+    .choice { display: grid; gap: 8px; }
+    .choice label { display: grid; grid-template-columns: auto 1fr; gap: 3px 9px; padding: 10px; border: 1px solid #e3e0da; border-radius: 9px; cursor: pointer; }
+    .choice label:has(input:checked) { border-color: var(--accent); background: #f7fbfb; }
+    .choice-title { font-size: 13px; font-weight: 650; }
+    .choice-hint { grid-column: 2; color: #7c7770; font-size: 12px; line-height: 1.55; }
+    .color-options { display: flex; gap: 12px; flex-wrap: wrap; }
+    .color-option { display: grid; gap: 5px; cursor: pointer; color: #6f6a63; font-size: 11px; text-align: center; }
+    .color-option input { position: absolute; opacity: 0; }
+    .swatch { width: 35px; height: 35px; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #d8d4ce; }
+    .color-option input:checked + .swatch { box-shadow: 0 0 0 2px var(--accent); }
+    .preview { padding: 15px; border-radius: 10px; color: #fff; background: #111; }
+    .preview .source { opacity: .58; font-size: 12px; }
+    .preview .translation { margin-top: 4px; font-size: 18px; font-weight: 650; }
+    .about-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+    .fact { padding: 13px; border-radius: 9px; background: #faf9f7; }
+    .fact strong { display: block; color: var(--accent); font-size: 19px; }
+    .fact span { color: #7c7770; font-size: 11px; line-height: 1.45; }
+    .links { display: flex; gap: 12px; }
+    .links a { color: var(--accent); font-size: 12px; text-decoration: none; }
+    progress { width: 100%; height: 12px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <div class="brand"><span class="mark">E</span><span>EchoSage</span></div>
+      <nav class="nav" aria-label="设置分区">
+        <button type="button" data-section="live" aria-selected="true">直播实时</button>
+        <button type="button" data-section="video" aria-selected="false">视频字幕</button>
+        <button type="button" data-section="overlay" aria-selected="false">叠加层外观</button>
+        <button type="button" data-section="about" aria-selected="false">关于</button>
+      </nav>
+    </aside>
+    <main>
+      <header class="page-head">
+        <div><h1>设置</h1><p class="subtle">设置会即时保存到此浏览器的本地扩展存储。</p></div>
+        <div id="save-indicator" class="saved">已保存</div>
+      </header>
+
+      <section class="card shared-card" aria-label="共享译文触发时机">
+        <h3>共享设置 · 中文译文什么时候出现</h3>
+        <p class="hint">它同时影响直播实时和视频字幕；改动会在下次开始转写时生效。</p>
+        <div class="choice">
+          <label><input type="radio" name="translate-trigger" value="pause" /><span class="choice-title">等主播停顿（默认）</span><span class="choice-hint">一个话轮结束后，按完整上下文即时翻译。</span></label>
+          <label><input type="radio" name="translate-trigger" value="sentence" /><span class="choice-title">每说完一句就翻译</span><span class="choice-hint">检测到稳定句末边界就定稿，降低长时间连续讲话时的延迟。</span></label>
+        </div>
+        <div id="trigger-status" class="status">读取设置…</div>
+      </section>
+
+      <section class="section" data-section-panel="live">
+        <div><h2>直播实时</h2><p class="subtle">捕获当前标签页音频，使用浏览器内置模型即时生成中文译文。</p></div>
+        <section class="card">
+          <h3>AssemblyAI API Key</h3>
+          <p class="hint">两个场景共用这一把 Key。保存前会尝试换取临时 token 来校验。</p>
+          <div class="row"><input id="api-key" type="password" autocomplete="off" placeholder="粘贴你的 AssemblyAI API Key" /></div>
+          <div class="row"><button id="save-key" class="button primary" type="button">保存并校验</button><button id="clear-key" class="button secondary" type="button">清除</button></div>
+          <div id="key-status" class="status">读取已保存的 Key…</div>
+        </section>
+        <section class="card">
+          <h3 id="model-heading">翻译模型</h3>
+          <p class="hint">翻译完全在浏览器本地完成。下载必须由此页面上的按钮点击触发。</p>
+          <div id="model-status" class="status">检测中…</div>
+          <div id="model-download-row" hidden><button id="download-model" class="button primary" type="button">下载翻译模型</button></div>
+          <progress id="download-progress" max="100" hidden></progress>
+        </section>
+      </section>
+
+      <section class="section" data-section-panel="video" hidden>
+        <div><h2>视频字幕</h2><p class="subtle">TikTok 原生 WebVTT 字幕优先；选择本地模型会逐条即时翻译，选择 AI 模型会在字幕齐全后整段批量翻译。</p></div>
+        <section class="card">
+          <h3>字幕翻译引擎</h3>
+          <label class="field">引擎<select id="video-translation-engine"><option value="builtin">Chrome 内置 nano（即时翻译）</option><option value="ai">AI 模型（整段批量翻译）</option></select></label>
+          <p class="hint">这项选择只作用于视频字幕。直播实时始终使用 Chrome 内置翻译。</p>
+        </section>
+        <section class="card">
+          <h3>AI 接口</h3>
+          <label class="field">Base URL<input id="chat-base-url" type="url" placeholder="https://api.example.com" /></label>
+          <label class="field">API Key<input id="chat-api-key" type="password" autocomplete="off" placeholder="sk-…" /></label>
+          <label class="field">聊天模型<input id="chat-model" placeholder="gpt-4o-mini" /></label>
+          <p class="hint">只需要兼容 <code>/v1/chat/completions</code>；不要求接口支持音频转写。</p>
+        </section>
+        <section class="card">
+          <h3>切换到新视频时</h3>
+          <label class="field">行为<select id="auto-caption-mode"><option value="manual">手动</option><option value="auto">自动</option></select></label>
+          <p class="hint">自动：切到有原生字幕的视频时立即读取；无原生字幕的视频将使用一次流式转写，并在播完一轮后停止。</p>
+        </section>
+      </section>
+
+      <section class="section" data-section-panel="overlay" hidden>
+        <div><h2>叠加层外观</h2><p class="subtle">强调色用于 EchoSage 的页面控件和高亮；悬浮层固定保持白字黑底。</p></div>
+        <section class="card">
+          <h3>强调色</h3>
+          <div class="color-options">
+            <label class="color-option"><input type="radio" name="accent-color" value="#168ea3" /><span class="swatch" style="background:#168ea3"></span><span>青蓝</span></label>
+            <label class="color-option"><input type="radio" name="accent-color" value="#5d55c7" /><span class="swatch" style="background:#5d55c7"></span><span>靛紫</span></label>
+            <label class="color-option"><input type="radio" name="accent-color" value="#238b5d" /><span class="swatch" style="background:#238b5d"></span><span>翠绿</span></label>
+            <label class="color-option"><input type="radio" name="accent-color" value="#c65b3f" /><span class="swatch" style="background:#c65b3f"></span><span>朱红</span></label>
+          </div>
+          <div class="preview"><div class="source">This line remains visually quiet.</div><div class="translation">译文始终是主视觉。</div></div>
+        </section>
+      </section>
+
+      <section class="section" data-section-panel="about" hidden>
+        <div><h2>关于 EchoSage</h2><p class="subtle">把实时直播字幕与 TikTok 视频字幕合并为一个扩展、一份设置和一套双轨呈现。</p></div>
+        <section class="card">
+          <h3>这次合并</h3>
+          <p class="hint">直播实时保留本地即时翻译；视频字幕优先读取原生字幕，并提供完整的字幕、总结与仿写工作区。</p>
+          <div class="about-facts">
+            <div class="fact"><strong>1.5s</strong><span>默认话轮停顿阈值</span></div>
+            <div class="fact"><strong>0 字</strong><span>本地翻译不上传文本</span></div>
+            <div class="fact"><strong>2 → 1</strong><span>两个图标合并为一个</span></div>
+          </div>
+          <div class="links"><a id="open-changelog" href="docs/adr/0010-adopt-esbuild-for-shared-modules.md" target="_blank">更新日志</a><a href="mailto:feedback@echosage.local">反馈</a><a id="open-privacy" href="CONTEXT.md" target="_blank">隐私</a></div>
+        </section>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="dist/options.js"></script>
+</body>
+</html>
