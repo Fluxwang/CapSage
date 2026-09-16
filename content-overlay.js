@@ -1,4 +1,9 @@
 import * as dragCore from "./core/drag.js";
+import {
+  ACCENT_COLOR_STORAGE_KEY,
+  DEFAULT_ACCENT_COLOR,
+  normalizeAccentColor,
+} from "./shared/settings.js";
 
 // Content Script —— 纯渲染层（ADR-0004/0006）
 //
@@ -84,6 +89,13 @@ if (window.__echoSageOverlayLoaded) {
 const HOST_ID = "echosage-subtitle-host";
 const POS_STORAGE_KEY = "subtitlePos";
 let shadowRoot = null;
+let overlayHost = null;
+
+// 强调色作为自定义属性挂在 shadow host 上，从外面继承进 shadow tree
+//（`:host { all: initial }` 不重置自定义属性）。
+function applyAccent(color) {
+  overlayHost?.style.setProperty("--echosage-accent", normalizeAccentColor(color));
+}
 let liveOverlayActive = false;
 let videoOverlayActive = false;
 let lastLiveState = null;
@@ -96,6 +108,16 @@ function createOverlay() {
   const host = document.createElement("div");
   host.id = HOST_ID;
   shadowRoot = host.attachShadow({ mode: "closed" });
+  overlayHost = host;
+  applyAccent(DEFAULT_ACCENT_COLOR);
+  chrome.storage.local
+    .get({ [ACCENT_COLOR_STORAGE_KEY]: DEFAULT_ACCENT_COLOR })
+    .then((stored) => applyAccent(stored[ACCENT_COLOR_STORAGE_KEY]))
+    .catch(() => {});
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes[ACCENT_COLOR_STORAGE_KEY]) return;
+    applyAccent(changes[ACCENT_COLOR_STORAGE_KEY].newValue);
+  });
 
   const style = document.createElement("style");
   // 全部样式内联在 Shadow DOM 里：宿主页面的 CSS 进不来（选择器打不进
@@ -158,12 +180,18 @@ function createOverlay() {
       font-size: 19px;
       opacity: 0.9;
     }
+    /* 白字黑底是叠加层的铁律（设计稿：任何画面上都要读得清），强调色只
+       落在译文轨底下那一条 2px 的线上——它标出「这一轨是主视觉」，不去
+       改字色，避免在花哨画面上降低对比度。 */
     .translation {
       font-size: 22px;
       line-height: 1.4;
       font-weight: 600;
       margin-top: 2px;
+      padding-bottom: 3px;
+      box-shadow: inset 0 -2px 0 var(--echosage-accent, oklch(0.58 0.14 195));
     }
+    .turn.no-translation .translation { box-shadow: none; }
     /* partial 与定稿字幕同框同底（框的边界才稳定），靠低透明度 + 斜体
        区分「还没定稿」。它是活跃度指示，不是信息传递。 */
     .partial {

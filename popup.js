@@ -1,111 +1,152 @@
 import { sessionEndMessages } from "./core/messages.js";
 import {
   ACCENT_COLOR_STORAGE_KEY,
+  BILINGUAL_STORAGE_KEY,
   DEFAULT_ACCENT_COLOR,
+  DEFAULT_BILINGUAL,
   DEFAULT_SOURCE_LANGUAGE,
+  DEFAULT_TARGET_LANGUAGE,
+  SOURCE_LANGUAGES,
   SOURCE_LANGUAGE_STORAGE_KEY,
+  TARGET_LANGUAGES,
+  TARGET_LANGUAGE_STORAGE_KEY,
+  TRANSLATOR_PROGRESS_STORAGE_KEY,
+  normalizeAccentColor,
+  sourceLanguageLabel,
+  targetLanguageLabel,
 } from "./shared/settings.js";
 
-const captureStatusEl = document.getElementById("capture-status");
-const transcriptEl = document.getElementById("transcript");
-const sessionTimeEl = document.getElementById("session-time");
-const startButton = document.getElementById("start-capture");
-const stopButton = document.getElementById("stop-capture");
+const $ = (id) => document.getElementById(id);
+
+const startCard = $("start-capture");
+const liveCard = $("live-card");
+const liveLabel = $("live-label");
+const stopDisc = $("stop-disc");
+const stopButton = $("stop-capture");
+const liveActions = $("live-actions");
+const sessionTimeEl = $("session-time");
+const captureStatusEl = $("capture-status");
+const captureStatusTextEl = $("capture-status-text");
+const transcriptBlock = $("transcript-block");
+const transcriptEl = $("transcript");
+const transcriptCountEl = $("transcript-count");
 const vuBars = [...document.querySelectorAll(".vu-bar")];
+const modelBanner = $("model-banner");
+const modelBannerText = $("model-banner-text");
+const modelDownload = $("model-download");
+const modelDownloadPct = $("model-download-pct");
+const modelDownloadBar = $("model-download-bar");
+
 const tabButtons = [...document.querySelectorAll("[data-tab]")];
 const panels = [...document.querySelectorAll("[data-panel]")];
-const videoCard = document.getElementById("video-card");
-const videoCover = document.getElementById("video-cover");
-const videoDescription = document.getElementById("video-description");
-const videoSource = document.getElementById("video-source");
-const videoStatusEl = document.getElementById("video-status");
-const videoCaptionsEl = document.getElementById("video-captions");
-const videoCountEl = document.getElementById("video-count");
-const copyVideoButton = document.getElementById("copy-video");
-const workspaceButton = document.getElementById("open-workspace");
-const summaryButton = document.getElementById("open-summary");
-const rewriteButton = document.getElementById("open-rewrite");
-const sourceLanguageInput = document.getElementById("source-language");
+const sourceLanguageInput = $("source-language");
+const targetLanguageInput = $("target-language");
+const videoTargetLanguageInput = $("video-target-language");
+const liveBilingualInput = $("live-bilingual");
+const videoBilingualInput = $("video-bilingual");
 
+const videoCard = $("video-card");
+const videoCover = $("video-cover");
+const videoDescription = $("video-description");
+const videoMeta = $("video-meta");
+const videoSourceLanguageEl = $("video-source-language");
+const videoStatusEl = $("video-status");
+const videoStatusTextEl = $("video-status-text");
+const videoRedetectButton = $("video-redetect");
+const videoCaptionsEl = $("video-captions");
+const videoCountEl = $("video-count");
+const copyVideoButton = $("copy-video");
+const translateVideoButton = $("translate-video");
+const workspaceButton = $("open-workspace");
+const summaryButton = $("open-summary");
+const rewriteButton = $("open-rewrite");
+
+const TRANSCRIPT_PLACEHOLDER = "开始捕获后，已定稿的话轮和进行中的转写会显示在这里。";
+const CAPTION_LANGUAGE_LABELS = {
+  en: "英文", es: "西语", ja: "日文", ko: "韩文", fr: "法文", de: "德文", pt: "葡文", zh: "中文",
+};
+
+let capturing = false;
 let activeBrowserTabId = null;
 let videoState = null;
+let sourceLanguage = DEFAULT_SOURCE_LANGUAGE;
+let targetLanguage = DEFAULT_TARGET_LANGUAGE;
+let bilingual = DEFAULT_BILINGUAL;
 
+fillOptions(sourceLanguageInput, SOURCE_LANGUAGES);
+fillOptions(targetLanguageInput, TARGET_LANGUAGES);
+fillOptions(videoTargetLanguageInput, TARGET_LANGUAGES);
 setCapturing(false);
-async function syncAccent() {
-  const stored = await chrome.storage.local.get({
-    [ACCENT_COLOR_STORAGE_KEY]: DEFAULT_ACCENT_COLOR,
-  });
-  document.documentElement.style.setProperty("--accent", stored[ACCENT_COLOR_STORAGE_KEY] || DEFAULT_ACCENT_COLOR);
+renderTranscript({});
+renderVideoState(null);
+
+function fillOptions(select, entries) {
+  select.replaceChildren(...entries.map(({ value, label }) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    return option;
+  }));
 }
 
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== "local" || !changes[ACCENT_COLOR_STORAGE_KEY]) return;
-  document.documentElement.style.setProperty("--accent", changes[ACCENT_COLOR_STORAGE_KEY].newValue || DEFAULT_ACCENT_COLOR);
-});
+/* ---------------- 外观 ---------------- */
 
-startButton.addEventListener("click", () => {
+function applyAccent(color) {
+  document.documentElement.style.setProperty("--accent", normalizeAccentColor(color));
+}
+
+/* ---------------- 直播实时 ---------------- */
+
+startCard.addEventListener("click", startCapture);
+stopDisc.addEventListener("click", stopCapture);
+stopButton.addEventListener("click", stopCapture);
+$("open-options").addEventListener("click", () => chrome.runtime.openOptionsPage());
+$("model-manage").addEventListener("click", () => chrome.runtime.openOptionsPage());
+
+function startCapture() {
   // 会话启动后源语言固定，先锁住控件，等 background/offscreen 的状态消息
   // 回来再根据成功或失败恢复，避免用户在启动链路中改到另一种语言。
   setCapturing(true);
+  setCaptureStatus("");
   chrome.runtime.sendMessage({
     type: "start-capture-request",
     sourceLanguage: sourceLanguageInput.value,
   });
-});
-stopButton.addEventListener("click", () => {
-  chrome.runtime.sendMessage({ type: "stop-capture-request" });
-});
-document.getElementById("open-options").addEventListener("click", () => {
-  chrome.runtime.openOptionsPage();
-});
-
-for (const button of tabButtons) {
-  button.addEventListener("click", () => selectTab(button.dataset.tab));
 }
-copyVideoButton.addEventListener("click", copyVideoCaptions);
-workspaceButton.addEventListener("click", () => openVideoWorkspace("captions"));
-summaryButton.addEventListener("click", () => openVideoWorkspace("summary"));
-rewriteButton.addEventListener("click", () => openVideoWorkspace("rewrite"));
-sourceLanguageInput.addEventListener("change", async () => {
-  await chrome.storage.local.set({ [SOURCE_LANGUAGE_STORAGE_KEY]: sourceLanguageInput.value });
-});
-chrome.runtime.onMessage.addListener((message) => {
-  switch (message.type) {
-    case "capture-status":
-      setStatus(message.status);
-      break;
-    case "capture-blocked":
-      setStatus(`🚫 ${message.message}`);
-      setCapturing(false);
-      break;
-    case "session-time":
-      sessionTimeEl.hidden = false;
-      sessionTimeEl.textContent = `⏱ ${formatDuration(message.seconds)}`;
-      break;
-    case "session-ended":
-      setStatus(sessionEndMessages[message.reason] ?? "⏹ 会话已结束。");
-      sessionTimeEl.hidden = true;
-      setCapturing(false);
-      resetVu();
-      break;
-    case "transcript-update":
-      renderTranscript(message);
-      break;
-    case "video-state-changed":
-      if (message.state?.tabId === activeBrowserTabId) renderVideoState(message.state);
-      break;
-  }
-});
 
+function stopCapture() {
+  chrome.runtime.sendMessage({ type: "stop-capture-request" });
+}
+
+function setCapturing(active) {
+  capturing = active;
+  startCard.hidden = active;
+  liveCard.hidden = !active;
+  liveActions.hidden = !active;
+  transcriptBlock.hidden = !active;
+  sourceLanguageInput.disabled = active;
+}
+
+// 捕获态里状态文案就是卡片上那行标题；空闲态它降级成一条灰底提示。
 function setStatus(status) {
-  captureStatusEl.textContent = status;
+  if (!status) return;
+  if (capturing) {
+    liveLabel.textContent = shortStatus(status);
+    setCaptureStatus("");
+  } else {
+    setCaptureStatus(status);
+  }
   updateVu(status);
 }
 
-function setCapturing(capturing) {
-  startButton.disabled = capturing;
-  stopButton.disabled = !capturing;
-  sourceLanguageInput.disabled = capturing;
+function shortStatus(status) {
+  const withoutVu = status.replace(/\s*[·|]?\s*音量:.*$/, "").trim();
+  return withoutVu || "正在捕获当前标签页音频";
+}
+
+function setCaptureStatus(text) {
+  captureStatusTextEl.textContent = text;
+  captureStatusEl.hidden = !text;
 }
 
 function formatDuration(totalSeconds) {
@@ -119,47 +160,140 @@ function updateVu(status) {
   if (!match) return;
   const level = Number(match[1]) / 100;
   vuBars.forEach((bar, index) => {
-    const normalized = Math.max(0.16, Math.min(1, level * 1.6 - index * 0.055));
+    const normalized = Math.max(0.2, Math.min(1, level * 1.6 - index * 0.045));
     bar.style.transform = `scaleY(${normalized})`;
-    bar.style.opacity = normalized > 0.2 ? "0.9" : "0.22";
+    bar.style.opacity = normalized > 0.24 ? "0.85" : "0.25";
   });
 }
 
 function resetVu() {
   vuBars.forEach((bar) => {
-    bar.style.transform = "scaleY(.16)";
-    bar.style.opacity = "0.22";
+    bar.style.transform = "scaleY(.2)";
+    bar.style.opacity = "0.25";
   });
 }
 
 function renderTranscript({ partial = "", turns = [] }) {
+  transcriptCountEl.textContent = turns.length ? `已定稿 ${turns.length} 句` : "";
   transcriptEl.replaceChildren();
   if (turns.length === 0 && !partial) {
-    const empty = document.createElement("div");
-    empty.className = "empty";
-    empty.textContent = "开始捕获后，已定稿的话轮和进行中的转写会显示在这里。";
-    transcriptEl.appendChild(empty);
+    transcriptEl.append(placeholder(TRANSCRIPT_PLACEHOLDER));
     return;
   }
   for (const turn of turns.slice(-5)) {
-    const source = document.createElement("div");
-    source.className = "turn-source";
-    source.textContent = turn.source;
-    transcriptEl.appendChild(source);
-    if (turn.translation) {
-      const translation = document.createElement("div");
-      translation.className = "turn-translation";
-      translation.textContent = turn.translation;
-      transcriptEl.appendChild(translation);
-    }
+    transcriptEl.append(turnRow(turn.source, turn.translation, false));
   }
   if (partial) {
-    const partialEl = document.createElement("div");
-    partialEl.className = "turn-partial";
-    partialEl.textContent = `${partial} …`;
-    transcriptEl.appendChild(partialEl);
+    transcriptEl.append(turnRow(`…${partial}`, "", true));
   }
   transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+function turnRow(source, translation, isPartial) {
+  const row = document.createElement("div");
+  row.className = isPartial ? "turn partial" : "turn";
+  if (bilingual || !translation) {
+    const sourceEl = document.createElement("div");
+    sourceEl.className = "source";
+    sourceEl.textContent = source;
+    row.append(sourceEl);
+  }
+  if (translation) {
+    const translationEl = document.createElement("div");
+    translationEl.className = "translation";
+    translationEl.textContent = translation;
+    row.append(translationEl);
+  }
+  return row;
+}
+
+function placeholder(text) {
+  const el = document.createElement("div");
+  el.className = "placeholder";
+  el.textContent = text;
+  return el;
+}
+
+/* ---------------- 本地翻译模型 ---------------- */
+
+function renderModelBanner(text, { ok = false } = {}) {
+  modelBanner.className = ok ? "banner ok" : "banner muted";
+  // 绿点只在「已就绪」时出现；没就绪还亮着绿灯比不亮更糟。
+  modelBanner.querySelector(".dot").hidden = !ok;
+  modelBannerText.textContent = text;
+}
+
+function renderDownloadProgress(percent) {
+  const active = Number.isFinite(percent) && percent >= 0 && percent < 100;
+  modelDownload.hidden = !active;
+  if (!active) return;
+  modelDownloadPct.textContent = `${Math.round(percent)}%`;
+  modelDownloadBar.style.width = `${Math.round(percent)}%`;
+}
+
+async function refreshModelBanner() {
+  const pair = `${sourceLanguageLabel(sourceLanguage)}→${targetLanguageLabel(targetLanguage)}`;
+  if (!("Translator" in self)) {
+    renderModelBanner("当前浏览器不支持内置翻译（需要 Chrome 138+）");
+    return;
+  }
+  let availability;
+  try {
+    availability = await Translator.availability({ sourceLanguage, targetLanguage });
+  } catch {
+    renderModelBanner(`无法检测本地翻译模型 · ${pair}`);
+    return;
+  }
+  switch (availability) {
+    case "available":
+      renderModelBanner(`本地翻译模型已就绪 · ${pair}`, { ok: true });
+      renderDownloadProgress(NaN);
+      break;
+    case "downloadable":
+      renderModelBanner(`本地翻译模型未下载 · ${pair}`);
+      break;
+    case "downloading":
+      renderModelBanner(`本地翻译模型正在下载 · ${pair}`);
+      break;
+    default:
+      renderModelBanner(`这个语言对在本机不可用 · ${pair}`);
+  }
+}
+
+/* ---------------- 视频字幕 ---------------- */
+
+for (const button of tabButtons) {
+  button.addEventListener("click", () => selectTab(button.dataset.tab));
+}
+copyVideoButton.addEventListener("click", copyVideoCaptions);
+translateVideoButton.addEventListener("click", () => sendVideoCommand("load-captions", "正在获取并翻译字幕…"));
+videoRedetectButton.addEventListener("click", () => sendVideoCommand("redetect", "正在重新检测当前视频…"));
+workspaceButton.addEventListener("click", () => openVideoWorkspace("captions"));
+summaryButton.addEventListener("click", () => openVideoWorkspace("summary"));
+rewriteButton.addEventListener("click", () => openVideoWorkspace("rewrite"));
+
+sourceLanguageInput.addEventListener("change", async () => {
+  sourceLanguage = sourceLanguageInput.value;
+  await chrome.storage.local.set({ [SOURCE_LANGUAGE_STORAGE_KEY]: sourceLanguage });
+  refreshModelBanner();
+});
+for (const select of [targetLanguageInput, videoTargetLanguageInput]) {
+  select.addEventListener("change", async () => {
+    targetLanguage = select.value;
+    targetLanguageInput.value = targetLanguage;
+    videoTargetLanguageInput.value = targetLanguage;
+    await chrome.storage.local.set({ [TARGET_LANGUAGE_STORAGE_KEY]: targetLanguage });
+    refreshModelBanner();
+  });
+}
+for (const input of [liveBilingualInput, videoBilingualInput]) {
+  input.addEventListener("change", async () => {
+    bilingual = input.checked;
+    liveBilingualInput.checked = bilingual;
+    videoBilingualInput.checked = bilingual;
+    await chrome.storage.local.set({ [BILINGUAL_STORAGE_KEY]: bilingual });
+    renderVideoState(videoState);
+  });
 }
 
 function selectTab(tab) {
@@ -177,8 +311,22 @@ async function refreshVideoState() {
     renderVideoState(result.data);
   } catch (error) {
     renderVideoState(null);
-    videoStatusEl.textContent = error.message || "请打开 TikTok 视频页面后重试。";
+    setVideoStatus(error.message || "请打开 TikTok 视频页面后重试。");
   }
+}
+
+function setVideoStatus(text, { redetect = true } = {}) {
+  videoStatusTextEl.textContent = text;
+  videoStatusEl.hidden = !text;
+  videoRedetectButton.hidden = !redetect;
+}
+
+function captionTrackLabel(state) {
+  const code = (state?.nativeCaptionLanguage || "").split("-")[0].toLowerCase();
+  const label = CAPTION_LANGUAGE_LABELS[code];
+  if (state?.source === "streaming") return "流式转写中";
+  if (!state?.nativeCaptionsAvailable) return "未检测到字幕轨";
+  return label ? `检测到${label}字幕轨` : "检测到原生字幕轨";
 }
 
 function renderVideoState(state) {
@@ -187,75 +335,82 @@ function renderVideoState(state) {
   const captions = state?.captions ?? [];
   const translations = state?.translations ?? [];
   const hasVideo = Boolean(video && !video.pending);
+
   videoCard.hidden = !hasVideo;
   if (hasVideo) {
-    videoCover.src = video.cover || "";
-    videoCover.hidden = !video.cover;
+    // 没封面时把 src 整个摘掉，而不是设成空串：空 src 会让 Chrome 画一个
+    // 破图标，摘掉之后 44×58 的槽位露出 CSS 里的斜纹底，正是设计稿的占位。
+    if (video.cover) videoCover.src = video.cover;
+    else videoCover.removeAttribute("src");
     videoDescription.textContent = video.description || "当前视频";
-    videoSource.textContent = state.source === "native"
-      ? "原生字幕"
-      : state.source === "streaming"
-        ? "流式转写"
-        : state.nativeCaptionsAvailable
-          ? "原生字幕可用"
-          : "无原生字幕";
+    const duration = Number(video.duration) > 0 ? formatDuration(Math.round(video.duration)) : "--:--";
+    videoMeta.textContent = `${duration} · ${captionTrackLabel(state)}`;
   }
+
+  videoSourceLanguageEl.textContent = state?.sourceLanguage
+    ? `${sourceLanguageLabel(state.sourceLanguage)}（自动）`
+    : "自动";
+
   if (!video) {
-    videoStatusEl.textContent = "打开 TikTok 视频页面后，这里会显示当前视频的原生字幕。";
+    setVideoStatus("打开 TikTok 视频页面后，这里会显示当前视频的字幕。");
   } else if (video.pending) {
-    videoStatusEl.textContent = "正在读取当前视频数据…";
+    setVideoStatus("正在读取当前视频数据…");
   } else if (captions.length) {
-    if (state.source === "native") {
-      videoStatusEl.textContent = state.translationPending
-        ? "已读取 TikTok 原生字幕，正在翻译。"
-        : "已读取 TikTok 原生字幕。";
-    } else if (state.source === "streaming") {
-      const streaming = state.streaming ?? {};
-      videoStatusEl.textContent = streaming.status === "inactive"
-        ? "视频流式转写已结束。"
-        : state.translationPending
-          ? "正在流式转写；AI 会在本轮播放结束后整段翻译。"
-          : "正在流式转写并更新字幕。";
-    } else {
-      videoStatusEl.textContent = "已读取视频字幕。";
-    }
+    setVideoStatus(captionsStatus(state), { redetect: false });
   } else if (state.nativeCaptionsAvailable) {
-    videoStatusEl.textContent = "此视频有原生字幕；可在页面卡片中读取。";
+    setVideoStatus("此视频有原生字幕；点「翻译字幕」读取。", { redetect: false });
   } else {
-    videoStatusEl.textContent = "当前视频没有原生字幕。";
+    setVideoStatus("当前页面未检测到视频字幕轨");
   }
-  videoCountEl.textContent = captions.length ? `${captions.length} 条` : "";
+
+  const translatedCount = translations.filter(Boolean).length;
+  videoCountEl.textContent = captions.length ? `${translatedCount} / ${captions.length} 已翻译` : "";
   copyVideoButton.disabled = captions.length === 0;
   summaryButton.disabled = captions.length === 0;
   rewriteButton.disabled = captions.length === 0;
+  translateVideoButton.disabled = !hasVideo;
+
   videoCaptionsEl.replaceChildren();
   if (!captions.length) {
-    const empty = document.createElement("div");
-    empty.className = "empty";
-    empty.textContent = "尚未读取字幕。";
-    videoCaptionsEl.appendChild(empty);
+    videoCaptionsEl.append(placeholder("尚未读取字幕。"));
     return;
   }
-  for (let index = 0; index < captions.slice(0, 8).length; index += 1) {
-    const caption = captions[index];
+  for (const [index, caption] of captions.slice(0, 40).entries()) {
     const row = document.createElement("div");
-    row.className = "video-caption-row";
+    row.className = "cue";
     const time = document.createElement("div");
-    time.className = "video-time";
+    time.className = "time";
     time.textContent = caption.start || "--:--";
     const lines = document.createElement("div");
-    const source = document.createElement("div");
-    source.textContent = caption.text || "";
-    lines.appendChild(source);
+    lines.className = "lines";
+    if (bilingual || !translations[index]) {
+      const source = document.createElement("div");
+      source.className = "source";
+      source.textContent = caption.text || "";
+      lines.append(source);
+    }
     if (translations[index]) {
       const translation = document.createElement("div");
-      translation.className = "video-translation";
+      translation.className = "translation";
       translation.textContent = translations[index];
-      lines.appendChild(translation);
+      lines.append(translation);
     }
     row.append(time, lines);
-    videoCaptionsEl.appendChild(row);
+    videoCaptionsEl.append(row);
   }
+}
+
+function captionsStatus(state) {
+  if (state.source === "native") {
+    return state.translationPending ? "已读取原生字幕，正在翻译。" : "已读取 TikTok 原生字幕。";
+  }
+  if (state.source === "streaming") {
+    if (state.streaming?.status === "inactive") return "视频流式转写已结束。";
+    return state.translationPending
+      ? "正在流式转写；AI 会在本轮播放结束后整段翻译。"
+      : "正在流式转写并更新字幕。";
+  }
+  return "已读取视频字幕。";
 }
 
 function videoCaptionText() {
@@ -270,9 +425,19 @@ function videoCaptionText() {
 async function copyVideoCaptions() {
   try {
     await navigator.clipboard.writeText(videoCaptionText());
-    videoStatusEl.textContent = "字幕已复制。";
+    setVideoStatus("字幕已复制。", { redetect: false });
   } catch (error) {
-    videoStatusEl.textContent = `复制失败：${error.message}`;
+    setVideoStatus(`复制失败：${error.message}`, { redetect: false });
+  }
+}
+
+async function sendVideoCommand(command, pendingText) {
+  setVideoStatus(pendingText, { redetect: false });
+  try {
+    const result = await chrome.runtime.sendMessage({ type: "video-command", command });
+    if (!result?.ok) throw new Error(result?.error || "当前页面无法执行该操作。");
+  } catch (error) {
+    setVideoStatus(error.message || "请在 TikTok 视频页面重试。");
   }
 }
 
@@ -280,10 +445,53 @@ async function openVideoWorkspace(view) {
   try {
     const result = await chrome.runtime.sendMessage({ type: "open-video-workspace", view });
     if (!result?.ok) throw new Error(result?.error || "无法打开侧边栏。");
+    window.close();
   } catch (error) {
-    videoStatusEl.textContent = error.message || "请在 TikTok 视频页面打开侧边栏。";
+    setVideoStatus(error.message || "请在 TikTok 视频页面打开侧边栏。", { redetect: false });
   }
 }
+
+/* ---------------- 消息与初始化 ---------------- */
+
+chrome.runtime.onMessage.addListener((message) => {
+  switch (message.type) {
+    case "capture-status":
+      setStatus(message.status);
+      break;
+    case "capture-blocked":
+      setCapturing(false);
+      setCaptureStatus(`🚫 ${message.message}`);
+      break;
+    case "session-time":
+      sessionTimeEl.textContent = formatDuration(message.seconds);
+      break;
+    case "session-ended":
+      setCapturing(false);
+      setCaptureStatus(sessionEndMessages[message.reason] ?? "⏹ 会话已结束。");
+      sessionTimeEl.textContent = "00:00";
+      resetVu();
+      break;
+    case "transcript-update":
+      renderTranscript(message);
+      break;
+    case "video-state-changed":
+      if (message.state?.tabId === activeBrowserTabId) renderVideoState(message.state);
+      break;
+  }
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (changes[ACCENT_COLOR_STORAGE_KEY]) {
+    applyAccent(changes[ACCENT_COLOR_STORAGE_KEY].newValue);
+  }
+  if (changes[TRANSLATOR_PROGRESS_STORAGE_KEY]) {
+    const percent = changes[TRANSLATOR_PROGRESS_STORAGE_KEY].newValue;
+    renderDownloadProgress(Number(percent));
+    if (percent === undefined) refreshModelBanner();
+  }
+});
+
 // 弹窗重新打开时，立即以 offscreen 的快照恢复会话状态，而不等下一条 tick。
 chrome.runtime
   .sendMessage({ target: "offscreen", type: "get-state" })
@@ -291,25 +499,40 @@ chrome.runtime
     if (!state) return;
     const active = state.status === "capturing" || state.status === "idle" || state.status === "reconnecting";
     setCapturing(active);
-    if (active && state.sourceLanguage) sourceLanguageInput.value = state.sourceLanguage;
-    renderTranscript(state);
-    if (active) {
-      sessionTimeEl.hidden = false;
-      sessionTimeEl.textContent = `⏱ ${formatDuration(state.sessionSeconds ?? 0)}`;
+    if (active && state.sourceLanguage) {
+      sourceLanguage = state.sourceLanguage;
+      sourceLanguageInput.value = state.sourceLanguage;
     }
+    renderTranscript(state);
+    if (active) sessionTimeEl.textContent = formatDuration(state.sessionSeconds ?? 0);
   })
-  .catch(() => {
-    setCapturing(false);
-  });
+  .catch(() => setCapturing(false));
+
 chrome.tabs.query({ active: true, currentWindow: true })
   .then(([tab]) => {
     activeBrowserTabId = tab?.id ?? null;
     return refreshVideoState();
   })
   .catch(() => renderVideoState(null));
-syncAccent().catch(() => {});
-chrome.storage.local.get({ [SOURCE_LANGUAGE_STORAGE_KEY]: DEFAULT_SOURCE_LANGUAGE })
+
+chrome.storage.local.get({
+  [ACCENT_COLOR_STORAGE_KEY]: DEFAULT_ACCENT_COLOR,
+  [SOURCE_LANGUAGE_STORAGE_KEY]: DEFAULT_SOURCE_LANGUAGE,
+  [TARGET_LANGUAGE_STORAGE_KEY]: DEFAULT_TARGET_LANGUAGE,
+  [BILINGUAL_STORAGE_KEY]: DEFAULT_BILINGUAL,
+  [TRANSLATOR_PROGRESS_STORAGE_KEY]: NaN,
+})
   .then((stored) => {
-    if (!sourceLanguageInput.disabled) sourceLanguageInput.value = stored[SOURCE_LANGUAGE_STORAGE_KEY];
+    applyAccent(stored[ACCENT_COLOR_STORAGE_KEY]);
+    sourceLanguage = stored[SOURCE_LANGUAGE_STORAGE_KEY];
+    targetLanguage = stored[TARGET_LANGUAGE_STORAGE_KEY];
+    bilingual = stored[BILINGUAL_STORAGE_KEY];
+    if (!sourceLanguageInput.disabled) sourceLanguageInput.value = sourceLanguage;
+    targetLanguageInput.value = targetLanguage;
+    videoTargetLanguageInput.value = targetLanguage;
+    liveBilingualInput.checked = bilingual;
+    videoBilingualInput.checked = bilingual;
+    renderDownloadProgress(Number(stored[TRANSLATOR_PROGRESS_STORAGE_KEY]));
+    return refreshModelBanner();
   })
-  .catch(() => {});
+  .catch(() => refreshModelBanner());

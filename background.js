@@ -508,6 +508,14 @@ async function handleVideoMessage(message, sender) {
       });
       return { ok: true };
     }
+    // popup 的「翻译字幕」「重新检测」需要让页内脚本动手：它持有 items
+    // 缓存和当前视频，background 只做转发，不复制那套状态。
+    case "video-command": {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) throw new Error("未找到当前标签页。");
+      await chrome.tabs.sendMessage(tab.id, { type: "video-command", command: message.command });
+      return { ok: true };
+    }
     default:
       return null;
   }
@@ -528,6 +536,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       "video-overlay-update",
       "video-overlay-stop",
       "open-video-workspace",
+      "video-command",
     ].includes(message.type)
   ) {
     handleVideoMessage(message, sender)

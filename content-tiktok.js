@@ -1,11 +1,17 @@
 import {
   ACCENT_COLOR_STORAGE_KEY,
   AUTO_CAPTION_MODE_STORAGE_KEY,
+  BILINGUAL_STORAGE_KEY,
   DEFAULT_ACCENT_COLOR,
+  DEFAULT_BILINGUAL,
   DEFAULT_SOURCE_LANGUAGE,
+  DEFAULT_TARGET_LANGUAGE,
   DEFAULT_VIDEO_TRANSLATION_ENGINE,
   SOURCE_LANGUAGE_STORAGE_KEY,
+  TARGET_LANGUAGES,
+  TARGET_LANGUAGE_STORAGE_KEY,
   VIDEO_TRANSLATION_ENGINE_STORAGE_KEY,
+  normalizeAccentColor,
 } from "./shared/settings.js";
 import { activeCueIndex, createPlaybackState, samplePlayback } from "./core/playback.js";
 import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sidepanel/render.js";
@@ -15,7 +21,7 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
   window.__echoSageTikTokLoaded = true;
   const rootId = "echosage-video-root";
   function applyAccent(color) {
-    document.documentElement.style.setProperty("--echosage-accent", color);
+    document.documentElement.style.setProperty("--echosage-accent", normalizeAccentColor(color));
   }
   let activeVideoId = "";
   let current = null;
@@ -45,10 +51,13 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
   let rewriteOutput = "";
   let rewriteError = "";
   let rewriteLoading = false;
+  const REWRITE_DURATIONS = ["15 秒", "30 秒", "60 秒"];
+  const REWRITE_TYPES = ["口播", "种草", "知识讲解"];
   let rewriteDuration = "30 秒";
   let rewriteType = "口播";
   let summaryFocus = "summary";
-  let bilingual = true;
+  let bilingual = DEFAULT_BILINGUAL;
+  let targetLanguage = DEFAULT_TARGET_LANGUAGE;
   let dismissed = false;
   let autoMode = "manual";
   let sourceLanguage = DEFAULT_SOURCE_LANGUAGE;
@@ -60,11 +69,15 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
     [AUTO_CAPTION_MODE_STORAGE_KEY]: "manual",
     [SOURCE_LANGUAGE_STORAGE_KEY]: DEFAULT_SOURCE_LANGUAGE,
     [VIDEO_TRANSLATION_ENGINE_STORAGE_KEY]: DEFAULT_VIDEO_TRANSLATION_ENGINE,
+    [TARGET_LANGUAGE_STORAGE_KEY]: DEFAULT_TARGET_LANGUAGE,
+    [BILINGUAL_STORAGE_KEY]: DEFAULT_BILINGUAL,
   }).then(values => {
     applyAccent(values[ACCENT_COLOR_STORAGE_KEY]);
     autoMode = values[AUTO_CAPTION_MODE_STORAGE_KEY];
     sourceLanguage = values[SOURCE_LANGUAGE_STORAGE_KEY];
     translationEngine = values[VIDEO_TRANSLATION_ENGINE_STORAGE_KEY];
+    targetLanguage = values[TARGET_LANGUAGE_STORAGE_KEY];
+    bilingual = values[BILINGUAL_STORAGE_KEY];
     if (autoMode === "auto" && current && !dismissed) maybeAutoRun(mount());
   });
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -81,6 +94,15 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
     if (changes[VIDEO_TRANSLATION_ENGINE_STORAGE_KEY]) {
       translationEngine = changes[VIDEO_TRANSLATION_ENGINE_STORAGE_KEY].newValue || DEFAULT_VIDEO_TRANSLATION_ENGINE;
       publishState();
+    }
+    // popup 和侧边栏是同一份设置的两个入口，任一边改动另一边立刻跟上。
+    if (changes[TARGET_LANGUAGE_STORAGE_KEY]) {
+      targetLanguage = changes[TARGET_LANGUAGE_STORAGE_KEY].newValue || DEFAULT_TARGET_LANGUAGE;
+      render();
+    }
+    if (changes[BILINGUAL_STORAGE_KEY]) {
+      bilingual = changes[BILINGUAL_STORAGE_KEY].newValue ?? DEFAULT_BILINGUAL;
+      render();
     }
   });
 
@@ -138,6 +160,10 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
       likes: stats.diggCount || stats.digg_count || 0,
       createdAt: item.createTime || item.create_time || 0,
       subtitleUrl: native?.Url || native?.url || "",
+      // 设计稿的视频卡片要显示「时长 · 检测到 X 字幕轨」，所以这两个字段
+      // 必须跟着 item 一起带出来，popup 无法再回头问页面。
+      duration: Number(video.duration) || 0,
+      subtitleLanguage: native?.LanguageCodeName || native?.languageCodeName || "",
       description: item.desc || "",
       products: Array.isArray(item.products) ? item.products : []
     });
@@ -285,12 +311,24 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
   function sidepanelMarkup() {
     const captionsSelected = sidepanelTab === "captions";
     const currentEngine = effectiveTranslationEngine();
+    const targetOptions = TARGET_LANGUAGES.map(({ value, label }) =>
+      `<option value="${value}" ${value === targetLanguage ? "selected" : ""}>${escapeHtml(label)}</option>`
+    ).join("");
+    const rewriteTypeOptions = REWRITE_TYPES.map(value =>
+      `<option ${value === rewriteType ? "selected" : ""}>${value}</option>`
+    ).join("");
+    const rewriteDurationOptions = REWRITE_DURATIONS.map(value =>
+      `<option ${value === rewriteDuration ? "selected" : ""}>${value}</option>`
+    ).join("");
     return `
       <aside class="tcs-sidepanel ${sidepanelOpen ? "is-open" : ""} ${sidepanelCollapsed ? "is-collapsed" : ""}" aria-hidden="${!sidepanelOpen}">
         <button class="tcs-expand" type="button" aria-label="展开侧边栏">‹</button>
         <header class="tcs-sidepanel-header">
-          <div><strong>EchoSage</strong><small>${escapeHtml(current.description || "当前视频")}</small></div>
-          <div class="tcs-panel-actions"><button class="tcs-collapse" type="button">收起</button><button class="tcs-sidepanel-close" type="button" aria-label="关闭侧边栏">×</button></div>
+          <div class="tcs-brand"><span class="tcs-mark">E</span><strong>EchoSage</strong><small>侧边栏</small></div>
+          <div class="tcs-panel-actions">
+            <button class="tcs-collapse" type="button" title="收起" aria-label="收起侧边栏">»</button>
+            <button class="tcs-sidepanel-close" type="button" title="关闭" aria-label="关闭侧边栏">✕</button>
+          </div>
         </header>
         <nav class="tcs-side-tabs" aria-label="视频工作区">
           <button type="button" data-side-tab="captions" aria-selected="${captionsSelected}">字幕和翻译</button>
@@ -298,29 +336,54 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
         </nav>
         <section class="tcs-side-view ${captionsSelected ? "" : "is-hidden"}" data-side-view="captions">
           <div class="tcs-side-controls">
-            <label class="tcs-switch"><input class="tcs-follow" type="checkbox" ${followPlayback ? "checked" : ""}><span></span>跟随播放</label>
-            <label class="tcs-switch"><input class="tcs-switch-bilingual" type="checkbox" ${bilingual ? "checked" : ""}><span></span>双语</label>
-            <label class="tcs-switch"><input class="tcs-video-overlay" type="checkbox" ${videoOverlayEnabled ? "checked" : ""}><span></span>悬浮窗</label>
-            <label class="tcs-switch"><input class="tcs-ai-engine" type="checkbox" ${currentEngine === "ai" ? "checked" : ""}><span></span>AI 翻译</label>
-          </div>
-          <div class="tcs-side-actions"><button class="tcs-copy" type="button">复制全文</button><button class="tcs-export" type="button">导出</button></div>
-          <div class="tcs-actions">
-            <button class="tcs-load" type="button">获取原生字幕</button>
-            ${current.subtitleUrl ? "" : `<button class="tcs-stream" type="button">${streamIsActive() ? "停止流式转写" : "开始流式转写"}</button>`}
+            <div class="tcs-control-row">
+              <label class="tcs-lang-pill"><span class="tcs-lang-tag">译</span><select class="tcs-target-language" aria-label="译文语言">${targetOptions}</select><span class="tcs-caret" aria-hidden="true">▾</span></label>
+              <label class="tcs-switch"><span class="tcs-switch-text">双语</span><input class="tcs-switch-bilingual" type="checkbox" ${bilingual ? "checked" : ""}><span class="tcs-track"></span></label>
+              <button class="tcs-copy" type="button" title="复制全文" aria-label="复制全文">⧉</button>
+            </div>
+            <div class="tcs-control-row">
+              <label class="tcs-switch"><input class="tcs-follow" type="checkbox" ${followPlayback ? "checked" : ""}><span class="tcs-track"></span><span class="tcs-switch-text">跟随播放</span></label>
+              <label class="tcs-switch"><input class="tcs-video-overlay" type="checkbox" ${videoOverlayEnabled ? "checked" : ""}><span class="tcs-track"></span><span class="tcs-switch-text">悬浮窗</span></label>
+              <span class="tcs-spacer"></span>
+              <label class="tcs-switch"><input class="tcs-ai-engine" type="checkbox" ${currentEngine === "ai" ? "checked" : ""}><span class="tcs-track"></span><span class="tcs-switch-text">AI 翻译</span></label>
+            </div>
+            <div class="tcs-actions">
+              <button class="tcs-load" type="button">获取字幕</button>
+              ${current.subtitleUrl ? "" : `<button class="tcs-stream" type="button">${streamIsActive() ? "停止流式转写" : "开始流式转写"}</button>`}
+            </div>
           </div>
           <div class="tcs-captions">${captionRows()}</div>
-          <footer class="tcs-status-bar"><span class="tcs-status">${escapeHtml(workspaceStatus || "尚未获取字幕。")}</span><strong>${escapeHtml(translationProgressText())}</strong></footer>
+          <footer class="tcs-status-bar">
+            <div class="tcs-status-lines">
+              <strong class="tcs-progress">${escapeHtml(translationProgressText())}</strong>
+              <span class="tcs-status">${escapeHtml(workspaceStatus)}</span>
+            </div>
+            <button class="tcs-export" type="button">导出</button>
+            <button class="tcs-goto-summary" type="button">总结</button>
+          </footer>
         </section>
         <section class="tcs-side-view ${captionsSelected ? "is-hidden" : ""}" data-side-view="summary">
-          <section class="tcs-generation-section">
-            <div class="tcs-generation-heading"><div><h2>视频要点</h2><p>用完整字幕提炼可复用的信息结构。</p></div><button class="tcs-generate-summary" type="button" ${captions.length ? "" : "disabled"}>${summaryOutput ? "重新生成" : "生成要点"}</button></div>
+          <div class="tcs-generation-section">
+            <div class="tcs-generation-heading">
+              <h2>视频要点</h2>
+              <button class="tcs-generate-summary" type="button" ${captions.length ? "" : "disabled"}>${summaryOutput ? "重新生成" : "生成要点"}</button>
+            </div>
             <div class="tcs-summary-result">${summaryListMarkup()}</div>
-          </section>
-          <section class="tcs-generation-section">
-            <div class="tcs-generation-heading"><div><h2>仿写脚本</h2><p>保留主题与结构，生成全新的表达。</p></div></div>
-            <div class="tcs-rewrite-controls"><label>时长<select class="tcs-rewrite-duration"><option ${rewriteDuration === "15 秒" ? "selected" : ""}>15 秒</option><option ${rewriteDuration === "30 秒" ? "selected" : ""}>30 秒</option><option ${rewriteDuration === "60 秒" ? "selected" : ""}>60 秒</option></select></label><label>类型<select class="tcs-rewrite-type"><option ${rewriteType === "口播" ? "selected" : ""}>口播</option><option ${rewriteType === "种草" ? "selected" : ""}>种草</option><option ${rewriteType === "知识讲解" ? "selected" : ""}>知识讲解</option></select></label><button class="tcs-generate-rewrite" type="button" ${captions.length ? "" : "disabled"}>生成脚本</button></div>
+          </div>
+          <div class="tcs-generation-section tcs-generation-grow">
+            <div class="tcs-generation-heading">
+              <h2>仿写脚本</h2>
+              <div class="tcs-rewrite-controls">
+                <label class="tcs-pill-select"><select class="tcs-rewrite-type" aria-label="脚本类型">${rewriteTypeOptions}</select><span class="tcs-caret" aria-hidden="true">▾</span></label>
+                <label class="tcs-pill-select"><select class="tcs-rewrite-duration" aria-label="脚本时长">${rewriteDurationOptions}</select><span class="tcs-caret" aria-hidden="true">▾</span></label>
+              </div>
+            </div>
             <div class="tcs-rewrite-result">${rewriteMarkup()}</div>
-          </section>
+          </div>
+          <div class="tcs-summary-actions">
+            <button class="tcs-copy-rewrite" type="button" ${rewriteOutput ? "" : "disabled"}>复制脚本</button>
+            <button class="tcs-generate-rewrite" type="button" ${captions.length ? "" : "disabled"}>${rewriteOutput ? "再写一版" : "生成脚本"}</button>
+          </div>
         </section>
       </aside>`;
   }
@@ -388,6 +451,10 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
   function updateRows(root) {
     const list = $(".tcs-captions", root);
     if (list) list.innerHTML = captionRows();
+    // 逐条翻译是增量的，不走 render()，所以「N / M 句已翻译」必须在这里
+    // 一起刷——否则设计稿上那行计数会一直停在开始时的数字。
+    const progress = $(".tcs-progress", root);
+    if (progress) progress.textContent = translationProgressText();
   }
 
   function refreshPlaybackPresentation(root = document.getElementById(rootId)) {
@@ -691,7 +758,13 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
     }
     $(".tcs-switch-bilingual", root).onchange = event => {
       bilingual = event.target.checked;
+      chrome.storage.local.set({ [BILINGUAL_STORAGE_KEY]: bilingual }).catch(() => {});
       updateRows(root);
+    };
+    $(".tcs-target-language", root).onchange = event => {
+      targetLanguage = event.target.value;
+      chrome.storage.local.set({ [TARGET_LANGUAGE_STORAGE_KEY]: targetLanguage }).catch(() => {});
+      setStatus(root, "已切换译文语言；重新获取字幕后生效。");
     };
     $(".tcs-follow", root).onchange = event => {
       followPlayback = event.target.checked;
@@ -706,6 +779,12 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
     $(".tcs-rewrite-duration", root).onchange = event => { rewriteDuration = event.target.value; };
     $(".tcs-rewrite-type", root).onchange = event => { rewriteType = event.target.value; };
     $(".tcs-generate-rewrite", root).onclick = () => generateRewrite();
+    $(".tcs-copy-rewrite", root).onclick = () => copyRewrite(root);
+    $(".tcs-goto-summary", root).onclick = () => {
+      sidepanelTab = "summary";
+      render();
+      if (captions.length && !summaryOutput && !summaryLoading) generateSummary();
+    };
     root.querySelectorAll(".tcs-open-options").forEach(button => {
       button.onclick = () => chrome.runtime.sendMessage({ type: "open-options" }).catch(() => {});
     });
@@ -716,6 +795,15 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
       const translation = translated[index] ? `\n${translated[index]}` : "";
       return `${caption.start}-${caption.end}\n${caption.text}${translation}`;
     }).join("\n\n");
+  }
+
+  async function copyRewrite(root) {
+    try {
+      await navigator.clipboard.writeText(rewriteOutput);
+      setStatus(root, "仿写脚本已复制。");
+    } catch (error) {
+      setStatus(root, `复制失败：${error.message}`);
+    }
   }
 
   async function copyCaptions(root) {
@@ -844,6 +932,7 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
         translationEngine: effectiveTranslationEngine(),
         sourceLanguage,
         nativeCaptionsAvailable: Boolean(current?.subtitleUrl),
+        nativeCaptionLanguage: current?.subtitleLanguage || "",
         source: captionSource,
         streaming: {
           sessionId: streamingSessionId || null,
@@ -901,9 +990,33 @@ import { renderCaptionRows, renderRewriteOutput, renderSummaryList } from "./sid
   });
 
   // The toolbar button toggles the panel, so the user can bring it back after closing it.
+  // popup 侧只有两个动作需要页内配合：读一次字幕、重扫当前视频。
+  function handleVideoCommand(command) {
+    dismissed = false;
+    if (command === "redetect") {
+      activeVideoId = "";
+      current = null;
+      refresh();
+      render();
+      return;
+    }
+    if (command !== "load-captions") return;
+    // popup 可能在浮层还没渲染过的时候就按了「翻译字幕」，而 loadCaptions
+    // 要在 root 里找 .tcs-load 才能显示忙碌态——先确保完整标记存在。
+    render();
+    const root = document.getElementById(rootId);
+    if (!current || current.pending || !$(".tcs-load", root)) return;
+    loadCaptions(root);
+  }
+
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "video-asr-update") {
       applyVideoAsrUpdate(message);
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (message?.type === "video-command") {
+      handleVideoCommand(message.command);
       sendResponse({ ok: true });
       return true;
     }

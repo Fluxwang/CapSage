@@ -2,156 +2,300 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <title>EchoSage 设置</title>
+  <title>EchoSage · 设置</title>
   <style>
-    :root { --accent: #168ea3; color: #1d1b18; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; }
+    :root {
+      --accent: oklch(0.58 0.14 195);
+      --ink: #1d1b18;
+      --ink-2: #3b372f;
+      --ink-3: #6f6a63;
+      --ink-4: #8a857e;
+      --ink-6: #a29d95;
+      --ink-7: #b8b3ac;
+      --fill: #fbfaf8;
+      --fill-2: #f4f2ef;
+      --fill-3: #f7f6f3;
+      --line: #eceae6;
+      --line-2: #e3e0da;
+      --line-3: #cdc8c0;
+      --warn-bg: oklch(0.98 0.02 75);
+      --warn-line: oklch(0.9 0.05 75);
+      --warn-ink: oklch(0.7 0.14 75);
+      --ok: oklch(0.62 0.15 150);
+      --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--ink);
+      font-family: "Noto Sans SC", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    }
     * { box-sizing: border-box; }
-    body { min-width: 760px; margin: 0; background: #f7f6f3; }
-    button, input, select { font: inherit; }
-    .layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); min-height: 100vh; }
-    aside { padding: 27px 16px; border-right: 1px solid #e3e0da; background: #fff; }
-    .brand { display: flex; align-items: center; gap: 8px; margin: 0 9px 28px; font-size: 14px; font-weight: 700; }
-    .mark { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 7px; color: #fff; background: var(--accent); font-size: 12px; }
-    .nav { display: grid; gap: 4px; }
-    .nav button { width: 100%; padding: 9px 10px; border: 0; border-radius: 8px; color: #6f6a63; background: transparent; cursor: pointer; text-align: left; font-size: 13px; }
-    .nav button[aria-selected="true"] { color: #1d1b18; background: #edf7f8; font-weight: 650; }
-    main { width: min(760px, 100%); padding: 38px 40px 64px; }
-    .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
-    h1 { margin: 0; font-size: 24px; }
-    h2 { margin: 0 0 6px; font-size: 17px; }
-    h3 { margin: 0; font-size: 13px; }
-    p { margin: 0; }
-    .subtle, .hint { color: #7c7770; font-size: 12px; line-height: 1.65; }
-    .saved { padding: 7px 10px; border-radius: 999px; color: var(--accent); background: #edf7f8; font-size: 11px; white-space: nowrap; }
-    .section[hidden] { display: none; }
-    .section { display: grid; gap: 16px; }
-    .card { display: grid; gap: 12px; padding: 17px; border: 1px solid #e3e0da; border-radius: 12px; background: #fff; }
-    .shared-card { margin-bottom: 18px; border-left: 3px solid var(--accent); }
-    .row { display: flex; align-items: center; gap: 8px; }
-    .row > input { flex: 1; }
-    .field { display: grid; gap: 6px; color: #3b372f; font-size: 13px; font-weight: 600; }
-    .field input, .field select { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid #d8d4ce; border-radius: 8px; color: #1d1b18; background: #fff; font-size: 13px; font-weight: 400; }
-    .field input:focus, .field select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 28%, transparent); border-color: var(--accent); }
-    .button { min-height: 36px; padding: 0 13px; border: 0; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 650; }
-    .primary { color: #fff; background: var(--accent); }
-    .secondary { color: #3b372f; background: #f0eeea; }
-    .status { min-height: 20px; padding: 9px 10px; border-radius: 8px; color: #6f6a63; background: #faf9f7; font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
-    .choice { display: grid; gap: 8px; }
-    .choice label { display: grid; grid-template-columns: auto 1fr; gap: 3px 9px; padding: 10px; border: 1px solid #e3e0da; border-radius: 9px; cursor: pointer; }
-    .choice label:has(input:checked) { border-color: var(--accent); background: #f7fbfb; }
-    .choice-title { font-size: 13px; font-weight: 650; }
-    .choice-hint { grid-column: 2; color: #7c7770; font-size: 12px; line-height: 1.55; }
-    .color-options { display: flex; gap: 12px; flex-wrap: wrap; }
-    .color-option { display: grid; gap: 5px; cursor: pointer; color: #6f6a63; font-size: 11px; text-align: center; }
-    .color-option input { position: absolute; opacity: 0; }
-    .swatch { width: 35px; height: 35px; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #d8d4ce; }
-    .color-option input:checked + .swatch { box-shadow: 0 0 0 2px var(--accent); }
-    .preview { padding: 15px; border-radius: 10px; color: #fff; background: #111; }
-    .preview .source { opacity: .58; font-size: 12px; }
-    .preview .translation { margin-top: 4px; font-size: 18px; font-weight: 650; }
-    .about-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
-    .fact { padding: 13px; border-radius: 9px; background: #faf9f7; }
-    .fact strong { display: block; color: var(--accent); font-size: 19px; }
-    .fact span { color: #7c7770; font-size: 11px; line-height: 1.45; }
-    .links { display: flex; gap: 12px; }
-    .links a { color: var(--accent); font-size: 12px; text-decoration: none; }
-    progress { width: 100%; height: 12px; }
+    body { margin: 0; padding: 40px 20px 64px; background: #e8e6e2; font-size: 12.5px; }
+    button, input, select { font: inherit; color: inherit; }
+    [hidden] { display: none !important; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .sheet { width: 760px; max-width: 100%; margin: 0 auto; overflow: hidden; border-radius: 14px; background: #fff; box-shadow: 0 12px 32px rgb(30 26 20 / 16%); }
+    .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .mark { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 8px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+    .brand-name { font-size: 16px; font-weight: 700; }
+    .save-state { display: flex; align-items: center; gap: 8px; color: var(--ink-4); font-size: 11.5px; white-space: nowrap; }
+    .save-state .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+
+    .sheet-body { display: flex; align-items: stretch; }
+    .nav { display: flex; width: 172px; flex: none; flex-direction: column; gap: 3px; padding: 16px 12px; border-right: 1px solid var(--line); }
+    .nav button { padding: 8px 11px; border: 0; border-radius: 9px; background: transparent; color: var(--ink-3); cursor: pointer; font-size: 12.5px; text-align: left; }
+    .nav button:hover { background: var(--fill-3); }
+    .nav button[aria-selected="true"] { background: var(--fill-2); color: var(--ink); font-weight: 500; }
+
+    .content { min-width: 0; flex: 1; padding: 22px 24px; }
+    .section { display: flex; flex-direction: column; gap: 26px; }
+    .block { display: flex; flex-direction: column; gap: 11px; }
+    .block-title { font-size: 14px; font-weight: 700; }
+    .prose { color: var(--ink-3); font-size: 12.5px; line-height: 1.75; }
+    .rule { height: 1px; background: var(--line); }
+    .note { color: var(--ink-4); font-size: 11.5px; line-height: 1.6; }
+
+    .stack { display: flex; flex-direction: column; gap: 8px; }
+    .text-input { width: 100%; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 9px; background: var(--fill); font-family: var(--mono); font-size: 12px; }
+    .text-input::placeholder { color: var(--ink-7); }
+    .text-input:focus-visible { border-color: var(--accent); outline: 2px solid color-mix(in oklab, var(--accent) 26%, transparent); outline-offset: 0; }
+    .button { padding: 8px 14px; border: 0; border-radius: 9px; cursor: pointer; font-size: 12.5px; }
+    .button.accent { background: var(--accent); color: #fff; font-weight: 500; }
+    .button.neutral { background: var(--fill-2); color: var(--ink-2); }
+    .button.neutral:hover { background: var(--line); }
+    .button.dark { background: var(--ink); color: #fff; font-weight: 500; }
+    .button:disabled { cursor: default; opacity: .5; }
+    .button-row { display: flex; align-items: center; gap: 8px; }
+
+    /* 字段网格（AI 接口） */
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field > .label { color: var(--ink-2); font-size: 12px; font-weight: 500; }
+    .field > input { width: 100%; padding: 9px 11px; border: 1px solid var(--line-2); border-radius: 9px; background: var(--fill); font-family: var(--mono); font-size: 12px; }
+    .field > input::placeholder { color: var(--ink-7); }
+    .field > .select { display: flex; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid var(--line-2); border-radius: 9px; background: var(--fill); }
+    .field > .select > select { flex: 1; min-width: 0; padding: 9px 0; appearance: none; border: 0; background: transparent; cursor: pointer; font-size: 12px; }
+    .field > .select > .caret { color: var(--ink-7); font-size: 10px; pointer-events: none; }
+
+    /* 单选卡片 */
+    .choices { display: flex; flex-direction: column; gap: 8px; }
+    .choice { display: flex; gap: 11px; padding: 13px 14px; border: 1px solid var(--line-2); border-radius: 11px; cursor: pointer; }
+    .choice:has(input:checked) { border: 1.5px solid var(--accent); padding: 12.5px 13.5px; background: var(--fill); }
+    .choice input { position: absolute; width: 0; height: 0; opacity: 0; }
+    .choice .radio { display: grid; width: 15px; height: 15px; flex: none; margin-top: 2px; place-items: center; border: 1.5px solid var(--line-3); border-radius: 50%; }
+    .choice:has(input:checked) .radio { border-color: var(--accent); }
+    .choice:has(input:checked) .radio::after { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); content: ""; }
+    .choice .body { display: flex; flex-direction: column; gap: 4px; }
+    .choice .title { font-size: 13px; font-weight: 500; }
+    .choice .desc { color: var(--ink-3); font-size: 12px; line-height: 1.7; }
+
+    /* 复选卡片 */
+    .check { display: flex; gap: 11px; padding: 13px 14px; border: 1px solid var(--line-2); border-radius: 11px; cursor: pointer; }
+    .check input { position: absolute; width: 0; height: 0; opacity: 0; }
+    .check .box { display: grid; width: 17px; height: 17px; flex: none; margin-top: 1px; place-items: center; border: 1.5px solid var(--line-3); border-radius: 5px; }
+    .check:has(input:checked) .box { border-color: var(--accent); background: var(--accent); }
+    .check:has(input:checked) .box::after { color: #fff; content: "✓"; font-size: 11px; line-height: 1; }
+    .check .body { color: var(--ink-2); font-size: 12.5px; line-height: 1.7; }
+
+    /* 提示条 */
+    .callout { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--warn-line); border-radius: 11px; background: var(--warn-bg); }
+    .callout > .text { flex: 1; color: var(--ink-2); font-size: 12.5px; line-height: 1.6; }
+    .callout > .button { flex: none; }
+    .callout.ready { border-color: var(--line-2); background: var(--fill-3); }
+    .callout.bar { align-items: stretch; gap: 10px; border-width: 1px; }
+    .callout.bar > .stripe { width: 3px; flex: none; border-radius: 2px; background: var(--warn-ink); }
+    .callout.bar > .text { font-size: 12px; line-height: 1.75; }
+    .progress { height: 5px; overflow: hidden; border-radius: 3px; background: #eae6dd; }
+    .progress > i { display: block; height: 100%; background: var(--warn-ink); transition: width .25s ease; }
+
+    /* 强调色 */
+    .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+    .swatch { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 11px; background: var(--fill); cursor: pointer; }
+    .swatch:has(input:checked) { border: 1.5px solid var(--accent); padding: 11.5px 13.5px; }
+    .swatch input { position: absolute; width: 0; height: 0; opacity: 0; }
+    .swatch .disc { width: 30px; height: 30px; border-radius: 50%; }
+    .swatch .name { color: var(--ink-2); font-size: 11.5px; }
+    .preview-label { color: var(--ink-2); font-size: 12px; font-weight: 500; }
+    .preview { display: flex; flex-direction: column; align-items: center; gap: 7px; overflow: hidden; padding: 24px 18px 18px; border-radius: 11px; background: repeating-linear-gradient(135deg, #3a3732 0 8px, #33302b 8px 16px); }
+    .preview .line { padding: 7px 14px; border-radius: 8px; background: rgb(12 10 8 / 78%); color: #fff; font-size: 13px; }
+    .preview .line.translation { box-shadow: inset 0 -2px 0 var(--accent); font-weight: 500; }
+
+    /* 关于 */
+    .about-head { display: flex; align-items: flex-start; gap: 14px; }
+    .about-head .logo { display: grid; width: 52px; height: 52px; flex: none; place-items: center; border-radius: 15px; background: var(--accent); color: #fff; font-size: 22px; font-weight: 700; }
+    .about-head .body { display: flex; flex-direction: column; gap: 5px; }
+    .about-head .name { font-size: 17px; font-weight: 700; }
+    .about-head .version { color: var(--ink-4); font-family: var(--mono); font-size: 11.5px; }
+    .about-prose { color: var(--ink-2); font-size: 13px; line-height: 1.9; }
+    .facts { display: flex; flex-direction: column; gap: 1px; overflow: hidden; border-radius: 11px; background: var(--fill-3); }
+    .fact { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #fff; }
+    .fact > strong { width: 62px; flex: none; color: var(--accent); font-family: var(--mono); font-size: 16px; font-weight: 500; }
+    .fact > span { color: var(--ink-2); font-size: 12.5px; }
+    .links { display: flex; align-items: center; gap: 16px; padding-top: 2px; }
+    .links > a { font-size: 12.5px; }
+    .links > .spacer { flex: 1; }
+    .links > .env { color: var(--ink-7); font-size: 11.5px; }
   </style>
 </head>
 <body>
-  <div class="layout">
-    <aside>
-      <div class="brand"><span class="mark">E</span><span>EchoSage</span></div>
+  <div class="sheet">
+    <header class="sheet-head">
+      <div class="brand"><span class="mark">E</span><span class="brand-name">EchoSage · 设置</span></div>
+      <div class="save-state"><span class="dot"></span><span id="save-indicator">修改即时保存</span></div>
+    </header>
+
+    <div class="sheet-body">
       <nav class="nav" aria-label="设置分区">
         <button type="button" data-section="live" aria-selected="true">直播实时</button>
         <button type="button" data-section="video" aria-selected="false">视频字幕</button>
         <button type="button" data-section="overlay" aria-selected="false">叠加层外观</button>
         <button type="button" data-section="about" aria-selected="false">关于</button>
       </nav>
-    </aside>
-    <main>
-      <header class="page-head">
-        <div><h1>设置</h1><p class="subtle">设置会即时保存到此浏览器的本地扩展存储。</p></div>
-        <div id="save-indicator" class="saved">已保存</div>
-      </header>
 
-      <section class="card shared-card" aria-label="共享译文触发时机">
-        <h3>共享设置 · 中文译文什么时候出现</h3>
-        <p class="hint">它同时影响直播实时和视频字幕；改动会在下次开始转写时生效。</p>
-        <div class="choice">
-          <label><input type="radio" name="translate-trigger" value="pause" /><span class="choice-title">等主播停顿（默认）</span><span class="choice-hint">一个话轮结束后，按完整上下文即时翻译。</span></label>
-          <label><input type="radio" name="translate-trigger" value="sentence" /><span class="choice-title">每说完一句就翻译</span><span class="choice-hint">检测到稳定句末边界就定稿，降低长时间连续讲话时的延迟。</span></label>
-        </div>
-        <div id="trigger-status" class="status">读取设置…</div>
-      </section>
-
-      <section class="section" data-section-panel="live">
-        <div><h2>直播实时</h2><p class="subtle">捕获当前标签页音频，使用浏览器内置模型即时生成中文译文。</p></div>
-        <section class="card">
-          <h3>AssemblyAI API Key</h3>
-          <p class="hint">两个场景共用这一把 Key。保存前会尝试换取临时 token 来校验。</p>
-          <div class="row"><input id="api-key" type="password" autocomplete="off" placeholder="粘贴你的 AssemblyAI API Key" /></div>
-          <div class="row"><button id="save-key" class="button primary" type="button">保存并校验</button><button id="clear-key" class="button secondary" type="button">清除</button></div>
-          <div id="key-status" class="status">读取已保存的 Key…</div>
-        </section>
-        <section class="card">
-          <h3 id="model-heading">翻译模型</h3>
-          <p class="hint">翻译完全在浏览器本地完成。下载必须由此页面上的按钮点击触发。</p>
-          <div id="model-status" class="status">检测中…</div>
-          <div id="model-download-row" hidden><button id="download-model" class="button primary" type="button">下载翻译模型</button></div>
-          <progress id="download-progress" max="100" hidden></progress>
-        </section>
-      </section>
-
-      <section class="section" data-section-panel="video" hidden>
-        <div><h2>视频字幕</h2><p class="subtle">TikTok 原生 WebVTT 字幕优先；选择本地模型会逐条即时翻译，选择 AI 模型会在字幕齐全后整段批量翻译。</p></div>
-        <section class="card">
-          <h3>字幕翻译引擎</h3>
-          <label class="field">引擎<select id="video-translation-engine"><option value="builtin">Chrome 内置 nano（即时翻译）</option><option value="ai">AI 模型（整段批量翻译）</option></select></label>
-          <p class="hint">这项选择只作用于视频字幕。直播实时始终使用 Chrome 内置翻译。</p>
-        </section>
-        <section class="card">
-          <h3>AI 接口</h3>
-          <label class="field">Base URL<input id="chat-base-url" type="url" placeholder="https://api.example.com" /></label>
-          <label class="field">API Key<input id="chat-api-key" type="password" autocomplete="off" placeholder="sk-…" /></label>
-          <label class="field">聊天模型<input id="chat-model" placeholder="gpt-4o-mini" /></label>
-          <p class="hint">只需要兼容 <code>/v1/chat/completions</code>；不要求接口支持音频转写。</p>
-        </section>
-        <section class="card">
-          <h3>切换到新视频时</h3>
-          <label class="field">行为<select id="auto-caption-mode"><option value="manual">手动</option><option value="auto">自动</option></select></label>
-          <p class="hint">自动：切到有原生字幕的视频时立即读取；无原生字幕的视频将使用一次流式转写，并在播完一轮后停止。</p>
-        </section>
-      </section>
-
-      <section class="section" data-section-panel="overlay" hidden>
-        <div><h2>叠加层外观</h2><p class="subtle">强调色用于 EchoSage 的页面控件和高亮；悬浮层固定保持白字黑底。</p></div>
-        <section class="card">
-          <h3>强调色</h3>
-          <div class="color-options">
-            <label class="color-option"><input type="radio" name="accent-color" value="#168ea3" /><span class="swatch" style="background:#168ea3"></span><span>青蓝</span></label>
-            <label class="color-option"><input type="radio" name="accent-color" value="#5d55c7" /><span class="swatch" style="background:#5d55c7"></span><span>靛紫</span></label>
-            <label class="color-option"><input type="radio" name="accent-color" value="#238b5d" /><span class="swatch" style="background:#238b5d"></span><span>翠绿</span></label>
-            <label class="color-option"><input type="radio" name="accent-color" value="#c65b3f" /><span class="swatch" style="background:#c65b3f"></span><span>朱红</span></label>
+      <div class="content">
+        <!-- ============ 直播实时 ============ -->
+        <section class="section" data-section-panel="live">
+          <div class="block">
+            <div class="block-title">1. AssemblyAI API Key</div>
+            <p class="prose">转写服务按 WebSocket 连接时长计费，每个账号自带的免费额度足够个人用很久。请填你自己的 Key——共用一个 Key 等于替别人付钱，而且存在扩展里的 Key 任何人打开开发者工具都能读出来。还没有账号的话，去 <a href="https://www.assemblyai.com" target="_blank" rel="noreferrer">assemblyai.com</a> 注册一个，在 Dashboard 里创建 API Key。</p>
+            <div class="stack">
+              <input id="api-key" class="text-input" type="password" autocomplete="off" placeholder="粘贴你的 AssemblyAI API Key" />
+              <div class="button-row">
+                <button id="save-key" class="button accent" type="button">保存并校验</button>
+                <button id="clear-key" class="button neutral" type="button">清除已保存的 Key</button>
+              </div>
+              <div id="key-status" class="note">读取已保存的 Key…</div>
+            </div>
           </div>
-          <div class="preview"><div class="source">This line remains visually quiet.</div><div class="translation">译文始终是主视觉。</div></div>
-        </section>
-      </section>
 
-      <section class="section" data-section-panel="about" hidden>
-        <div><h2>关于 EchoSage</h2><p class="subtle">把实时直播字幕与 TikTok 视频字幕合并为一个扩展、一份设置和一套双轨呈现。</p></div>
-        <section class="card">
-          <h3>这次合并</h3>
-          <p class="hint">直播实时保留本地即时翻译；视频字幕优先读取原生字幕，并提供完整的字幕、总结与仿写工作区。</p>
-          <div class="about-facts">
-            <div class="fact"><strong>1.5s</strong><span>默认话轮停顿阈值</span></div>
-            <div class="fact"><strong>0 字</strong><span>本地翻译不上传文本</span></div>
-            <div class="fact"><strong>2 → 1</strong><span>两个图标合并为一个</span></div>
+          <div class="rule"></div>
+
+          <div class="block">
+            <div id="model-heading" class="block-title">2. 西→中翻译模型（浏览器内置）</div>
+            <p class="prose">翻译完全在你的电脑上本地进行（Chrome 内置 Translator API，不上传任何内容）。模型下载只能在这个有按钮点击的页面里触发，下载约需几分钟。</p>
+            <div id="model-callout" class="callout">
+              <div id="model-status" class="text">检测中…</div>
+              <button id="download-model" class="button dark" type="button" hidden>下载翻译模型</button>
+            </div>
+            <div id="download-progress" class="progress" hidden><i id="download-progress-bar" style="width:0%"></i></div>
           </div>
-          <div class="links"><a id="open-changelog" href="docs/adr/0010-adopt-esbuild-for-shared-modules.md" target="_blank">更新日志</a><a href="mailto:feedback@echosage.local">反馈</a><a id="open-privacy" href="CONTEXT.md" target="_blank">隐私</a></div>
+
+          <div class="rule"></div>
+
+          <div class="block">
+            <div class="block-title">3. 中文译文什么时候出现</div>
+            <p class="prose">改动在下次点开始捕获后生效，直播进行中切换不会有变化。这一项两个场景共用。</p>
+            <div class="choices">
+              <label class="choice">
+                <input type="radio" name="translate-trigger" value="pause" />
+                <span class="radio"></span>
+                <span class="body">
+                  <span class="title">等主播停顿后整段翻译（默认）</span>
+                  <span class="desc">主播停下来超过 1.5 秒才认定一句话讲完，按完整上下文整段翻译。译文更通顺，代价是话说得急时会等得久一点。</span>
+                </span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="translate-trigger" value="sentence" />
+                <span class="radio"></span>
+                <span class="body">
+                  <span class="title">每说完一句就翻译</span>
+                  <span class="desc">转写里出现句号且后面已经接上新内容时，立刻把这一句送去翻译。带货这类长时间连讲的直播延迟明显更低，代价是逐句翻译、跨句的上下文略少。</span>
+                </span>
+              </label>
+            </div>
+            <div id="trigger-status" class="note">读取设置…</div>
+          </div>
         </section>
-      </section>
-    </main>
+
+        <!-- ============ 视频字幕 ============ -->
+        <section class="section" data-section-panel="video" hidden>
+          <div class="block" style="gap:14px">
+            <div class="block-title">AI 接口</div>
+            <div class="grid">
+              <label class="field"><span class="label">Base URL</span><input id="chat-base-url" type="url" placeholder="https://api.example.com" /></label>
+              <label class="field"><span class="label">API Key</span><input id="chat-api-key" type="password" autocomplete="off" placeholder="sk-…" /></label>
+              <label class="field"><span class="label">聊天模型</span><input id="chat-model" placeholder="gpt-4o-mini" /></label>
+              <label class="field"><span class="label">AssemblyAI 模型</span><input id="asr-model" placeholder="universal" /></label>
+              <label class="field">
+                <span class="label">字幕翻译引擎</span>
+                <span class="select">
+                  <select id="video-translation-engine">
+                    <option value="builtin">Chrome 内置 nano（即时翻译）</option>
+                    <option value="ai">AI 模型（较慢，随聊天模型走）</option>
+                  </select>
+                  <span class="caret" aria-hidden="true">▾</span>
+                </span>
+              </label>
+              <label class="field">
+                <span class="label">切换到新视频时</span>
+                <span class="select">
+                  <select id="auto-caption-mode">
+                    <option value="manual">手动点击“获取字幕”</option>
+                    <option value="auto">自动获取字幕</option>
+                  </select>
+                  <span class="caret" aria-hidden="true">▾</span>
+                </span>
+              </label>
+            </div>
+
+            <label class="check">
+              <input id="video-asr-enabled" type="checkbox" />
+              <span class="box"></span>
+              <span class="body">启用 AssemblyAI 转写（无原生字幕时录音并转写，会调用 AssemblyAI API）</span>
+            </label>
+
+            <div class="callout bar">
+              <span class="stripe"></span>
+              <span class="text">选择自动档位后，若该视频没有原生字幕，会在切换视频时自动录制 30 秒标签页音频并调用 AssemblyAI（无需点击），请留意由此产生的调用次数与费用。</span>
+            </div>
+            <p class="note">这里的引擎选择只作用于视频字幕。直播实时始终使用 Chrome 内置翻译，不提供云端选项。</p>
+          </div>
+        </section>
+
+        <!-- ============ 叠加层外观 ============ -->
+        <section class="section" data-section-panel="overlay" hidden style="gap:20px">
+          <div class="block" style="gap:12px">
+            <div class="block-title">强调色</div>
+            <p class="prose">用在按钮、开关、当前标签页和译文高亮上。字幕叠加层本身始终保持白字黑底，保证在任何画面上都读得清。</p>
+            <div id="accent-swatches" class="swatches"></div>
+          </div>
+          <div class="block" style="gap:9px">
+            <div class="preview-label">效果预览</div>
+            <div class="preview">
+              <div class="line">Y esto lo tenemos en tres colores.</div>
+              <div class="line translation">这个我们有三种颜色。</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ 关于 ============ -->
+        <section class="section" data-section-panel="about" hidden style="gap:22px">
+          <div class="about-head">
+            <div class="logo">E</div>
+            <div class="body">
+              <div class="name">EchoSage</div>
+              <div id="about-version" class="version">EchoSage</div>
+            </div>
+          </div>
+
+          <p class="about-prose">这东西最早是两个扩展。一个盯着直播，边听边把西语翻成中文贴在画面下面；另一个蹲在短视频旁边，把字幕扒下来一句句对照着读。问题是它们从不打招呼，装了两个，图标挨在一起，配置各写各的，连语言都要各选一次。<br />现在它们合并了。上面两个标签页，左边听现场，右边读录像，共用一套 Key、一套语言、一套脾气。</p>
+
+          <div class="facts">
+            <div class="fact"><strong>1.5s</strong><span>默认等主播停顿这么久，才认定一句话讲完了。</span></div>
+            <div class="fact"><strong>0</strong><span>翻译过程中上传到我们服务器的字数——模型跑在你自己的浏览器里。</span></div>
+            <div class="fact"><strong>2→1</strong><span>工具栏上少了一个图标。这是本次更新最大的功能。</span></div>
+          </div>
+
+          <div class="links">
+            <a id="open-changelog" href="docs/adr/0010-adopt-esbuild-for-shared-modules.md" target="_blank">更新日志</a>
+            <a href="mailto:feedback@echosage.local">反馈问题</a>
+            <a id="open-privacy" href="CONTEXT.md" target="_blank">隐私说明</a>
+            <span class="spacer"></span>
+            <span class="env">Chrome 138+ · 内置 Translator API</span>
+          </div>
+        </section>
+      </div>
+    </div>
   </div>
   <script type="module" src="dist/options.js"></script>
 </body>
