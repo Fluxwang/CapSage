@@ -1,0 +1,33 @@
+# 旧的独立仓库——留作归档参考，不并入这个新仓库（见 docs/adr、CONTEXT.md 的合并决定）
+./echocap/*
+./tiktok-caption-studio/*
+
+# 依赖与构建产物
+node_modules/
+dist/
+
+# 扩展打包产物
+*.crx
+*.pem
+*.zip
+
+# 环境变量 / 密钥
+.env
+.env.*
+
+# 日志
+*.log
+npm-debug.log*
+
+# 测试覆盖率
+coverage/
+
+# 操作系统 / 编辑器
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# WSL 从 Windows 复制文件时留下的元数据标记
+*Zone.Identifier*
