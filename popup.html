@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>EchoSage</title>
+  <link rel="icon" type="image/png" href="icons/icon-32.png" />
   <style>
     :root {
       --accent: oklch(0.58 0.14 195);
@@ -34,7 +35,7 @@
     /* ---------- 外壳 ---------- */
     .header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 12px; }
     .brand { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 700; }
-    .mark { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 7px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; }
+    .mark { display: block; width: 22px; height: 22px; flex: none; object-fit: contain; }
     .icon-button { display: grid; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 7px; background: var(--fill-2); color: var(--ink-3); cursor: pointer; font-size: 13px; }
     .icon-button:hover { background: var(--line); }
 
@@ -147,7 +148,7 @@
 </head>
 <body>
   <header class="header">
-    <div class="brand"><span class="mark">E</span><span>EchoSage</span></div>
+    <div class="brand"><img class="mark" src="icons/icon-48.png" alt="" width="22" height="22" /><span>EchoSage</span></div>
     <button id="open-options" class="icon-button" type="button" title="设置" aria-label="打开设置">⚙</button>
   </header>
   <nav class="tabs" aria-label="场景">

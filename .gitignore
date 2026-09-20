@@ -1,6 +1,6 @@
 # 旧的独立仓库——留作归档参考，不并入这个新仓库（见 docs/adr、CONTEXT.md 的合并决定）
-./echocap/*
-./tiktok-caption-studio/*
+echocap/
+tiktok-caption-studio/
 
 # 依赖与构建产物
 node_modules/

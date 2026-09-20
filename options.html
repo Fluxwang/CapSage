@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>EchoSage · 设置</title>
+  <link rel="icon" type="image/png" href="icons/icon-32.png" />
   <style>
     :root {
       --accent: oklch(0.58 0.14 195);
@@ -36,7 +37,7 @@
     .sheet { width: 760px; max-width: 100%; margin: 0 auto; overflow: hidden; border-radius: 14px; background: #fff; box-shadow: 0 12px 32px rgb(30 26 20 / 16%); }
     .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--line); }
     .brand { display: flex; align-items: center; gap: 10px; }
-    .mark { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 8px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+    .mark { display: block; width: 26px; height: 26px; flex: none; object-fit: contain; }
     .brand-name { font-size: 16px; font-weight: 700; }
     .save-state { display: flex; align-items: center; gap: 8px; color: var(--ink-4); font-size: 11.5px; white-space: nowrap; }
     .save-state .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
@@ -122,7 +123,7 @@
 
     /* 关于 */
     .about-head { display: flex; align-items: flex-start; gap: 14px; }
-    .about-head .logo { display: grid; width: 52px; height: 52px; flex: none; place-items: center; border-radius: 15px; background: var(--accent); color: #fff; font-size: 22px; font-weight: 700; }
+    .about-head .logo { display: block; width: 52px; height: 52px; flex: none; object-fit: contain; }
     .about-head .body { display: flex; flex-direction: column; gap: 5px; }
     .about-head .name { font-size: 17px; font-weight: 700; }
     .about-head .version { color: var(--ink-4); font-family: var(--mono); font-size: 11.5px; }
@@ -140,7 +141,7 @@
 <body>
   <div class="sheet">
     <header class="sheet-head">
-      <div class="brand"><span class="mark">E</span><span class="brand-name">EchoSage · 设置</span></div>
+      <div class="brand"><img class="mark" src="icons/icon-128.png" alt="" width="26" height="26" /><span class="brand-name">EchoSage · 设置</span></div>
       <div class="save-state"><span class="dot"></span><span id="save-indicator">修改即时保存</span></div>
     </header>
 
@@ -271,7 +272,7 @@
         <!-- ============ 关于 ============ -->
         <section class="section" data-section-panel="about" hidden style="gap:22px">
           <div class="about-head">
-            <div class="logo">E</div>
+            <img class="logo" src="icons/icon-128.png" alt="" width="52" height="52" />
             <div class="body">
               <div class="name">EchoSage</div>
               <div id="about-version" class="version">EchoSage</div>
