@@ -36,6 +36,7 @@ const modelBannerText = $("model-banner-text");
 const modelDownload = $("model-download");
 const modelDownloadPct = $("model-download-pct");
 const modelDownloadBar = $("model-download-bar");
+const updateNotice = $("update-notice");
 
 const tabButtons = [...document.querySelectorAll("[data-tab]")];
 const panels = [...document.querySelectorAll("[data-panel]")];
@@ -102,6 +103,10 @@ stopDisc.addEventListener("click", stopCapture);
 stopButton.addEventListener("click", stopCapture);
 $("open-options").addEventListener("click", () => chrome.runtime.openOptionsPage());
 $("model-manage").addEventListener("click", () => chrome.runtime.openOptionsPage());
+updateNotice.addEventListener("click", async () => {
+  await chrome.runtime.sendMessage({ type: "open-options", section: "about" });
+  window.close();
+});
 
 function startCapture() {
   // 会话启动后源语言固定，先锁住控件，等 background/offscreen 的状态消息
@@ -477,6 +482,9 @@ chrome.runtime.onMessage.addListener((message) => {
     case "video-state-changed":
       if (message.state?.tabId === activeBrowserTabId) renderVideoState(message.state);
       break;
+    case "update-state-changed":
+      updateNotice.hidden = !message.view?.availableUpdate;
+      break;
   }
 });
 
@@ -507,6 +515,15 @@ chrome.runtime
     if (active) sessionTimeEl.textContent = formatDuration(state.sessionSeconds ?? 0);
   })
   .catch(() => setCapturing(false));
+
+// popup 只读取 reducer 已有的结论，不在打开时触发新的更新检查。
+chrome.runtime.sendMessage({ type: "get-update-view" })
+  .then((response) => {
+    updateNotice.hidden = !response?.data?.availableUpdate;
+  })
+  .catch(() => {
+    updateNotice.hidden = true;
+  });
 
 chrome.tabs.query({ active: true, currentWindow: true })
   .then(([tab]) => {

@@ -47,6 +47,14 @@ const autoCaptionModeInput = $("auto-caption-mode");
 const videoTranslationEngineInput = $("video-translation-engine");
 const videoAsrEnabledInput = $("video-asr-enabled");
 const accentSwatches = $("accent-swatches");
+const checkUpdateButton = $("check-update");
+const runningVersionEl = $("running-version");
+const releasedVersionRow = $("released-version-row");
+const releasedVersionEl = $("released-version");
+const updateMessageEl = $("update-message");
+const updateStepsEl = $("update-steps");
+const reloadExtensionButton = $("reload-extension");
+const reloadReasonEl = $("reload-reason");
 
 let sourceLanguage = DEFAULT_SOURCE_LANGUAGE;
 let targetLanguage = DEFAULT_TARGET_LANGUAGE;
@@ -70,6 +78,57 @@ function selectSection(name) {
     section.hidden = section.dataset.sectionPanel !== name;
   }
 }
+
+const requestedSection = location.hash.slice(1);
+if (["live", "video", "overlay", "about"].includes(requestedSection)) {
+  selectSection(requestedSection);
+}
+
+/* ---------------- 更新 ---------------- */
+
+function renderUpdateView(view) {
+  if (!view) return;
+  runningVersionEl.textContent = view.runningVersion ? `v${view.runningVersion}` : "—";
+  releasedVersionRow.hidden = !view.releasedVersion;
+  if (view.releasedVersion) {
+    releasedVersionEl.textContent = view.releasedVersion;
+    if (view.releaseUrl) releasedVersionEl.href = view.releaseUrl;
+    else releasedVersionEl.removeAttribute("href");
+  }
+
+  checkUpdateButton.textContent = view.checkButton.label;
+  checkUpdateButton.disabled = view.checkButton.disabled;
+  updateMessageEl.hidden = !view.message;
+  updateMessageEl.textContent = view.message ?? "";
+  updateMessageEl.dataset.tone = view.messageTone ?? "";
+
+  updateStepsEl.hidden = !view.updateInstructions;
+  if (view.updateInstructions) {
+    $("update-pull-step").textContent = view.updateInstructions.pull;
+    $("update-reload-step").textContent = view.updateInstructions.reload;
+    $("update-badge-note").textContent = view.updateInstructions.badge;
+  }
+  reloadExtensionButton.textContent = view.reloadButton.label;
+  reloadExtensionButton.disabled = view.reloadButton.disabled;
+  reloadReasonEl.textContent = view.reloadButton.reason;
+}
+
+checkUpdateButton.addEventListener("click", async () => {
+  const response = await chrome.runtime.sendMessage({ type: "user-requested-update-check" });
+  if (response?.data) renderUpdateView(response.data);
+});
+
+reloadExtensionButton.addEventListener("click", () => {
+  chrome.runtime.sendMessage({ type: "user-requested-extension-reload" });
+});
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === "update-state-changed") renderUpdateView(message.view);
+});
+
+chrome.runtime.sendMessage({ type: "get-update-view" })
+  .then((response) => renderUpdateView(response?.data))
+  .catch(() => {});
 
 // 设计稿右上角常驻「修改即时保存」；保存瞬间才换成具体回执，随后复位。
 function showSaved(message = "已保存") {

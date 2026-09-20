@@ -36,6 +36,8 @@
     .header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 12px; }
     .brand { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 700; }
     .mark { display: block; width: 22px; height: 22px; flex: none; object-fit: contain; }
+    .update-notice { display: grid; width: 20px; height: 20px; margin-left: -4px; place-items: center; border: 0; background: transparent; cursor: pointer; }
+    .update-notice::after { width: 8px; height: 8px; border-radius: 50%; background: #d93025; box-shadow: 0 0 0 2px rgb(217 48 37 / 12%); content: ""; }
     .icon-button { display: grid; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 7px; background: var(--fill-2); color: var(--ink-3); cursor: pointer; font-size: 13px; }
     .icon-button:hover { background: var(--line); }
 
@@ -148,7 +150,7 @@
 </head>
 <body>
   <header class="header">
-    <div class="brand"><img class="mark" src="icons/icon-48.png" alt="" width="22" height="22" /><span>EchoSage</span></div>
+    <div class="brand"><img class="mark" src="icons/icon-48.png" alt="" width="22" height="22" /><span>EchoSage</span><button id="update-notice" class="update-notice" type="button" title="有可用更新" aria-label="有可用更新，打开关于" hidden></button></div>
     <button id="open-options" class="icon-button" type="button" title="设置" aria-label="打开设置">⚙</button>
   </header>
   <nav class="tabs" aria-label="场景">

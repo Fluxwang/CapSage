@@ -2,9 +2,8 @@
 echocap/
 tiktok-caption-studio/
 
-# 依赖与构建产物
+# 依赖（dist/ 刻意提交，见 ADR-0011：用户机器不需要 Node）
 node_modules/
-dist/
 
 # 扩展打包产物
 *.crx
