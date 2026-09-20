@@ -19,8 +19,16 @@ import {
   TRIGGER_STORAGE_KEY,
   VIDEO_TRANSLATION_ENGINE_STORAGE_KEY,
 } from "./shared/settings.js";
+import { createUpdateState, updateReducer } from "./core/update.js";
 
 const OFFSCREEN_DOCUMENT_PATH = "/offscreen.html";
+const UPDATE_ALARM = "release-update-check";
+const RELEASE_ENDPOINT = "https://api.github.com/repos/Fluxwang/CapSage/releases/latest";
+const UPDATE_STORAGE = {
+  releasedVersion: "updateReleasedVersion",
+  releaseUrl: "updateReleaseUrl",
+  lastCheckedAt: "updateLastCheckedAt",
+};
 
 let creatingOffscreenDocument; // 防止并发重复创建的锁
 let capturedTabId = null; // 字幕只投递给这个标签页（ticket 06）
@@ -30,6 +38,103 @@ const videoStates = new Map();
 // 以 tab 为键的流式视频会话。它与 live 的 capturedTabId 完全分离，允许
 // 一个直播标签页和一个 TikTok 视频标签页同时各跑一条 AssemblyAI 会话。
 const videoCaptureSessions = new Map();
+let updateState = createUpdateState();
+let updateHostInitialization;
+
+function broadcastUpdateView() {
+  chrome.runtime.sendMessage({
+    type: "update-state-changed",
+    view: updateState.view,
+  }).catch(() => {});
+}
+
+function dispatchUpdate(event) {
+  const result = updateReducer(updateState, event);
+  updateState = result.state;
+  broadcastUpdateView();
+  for (const command of result.commands) executeUpdateCommand(command);
+  return updateState.view;
+}
+
+function executeUpdateCommand(command) {
+  if (command.type === "set-badge") {
+    chrome.action.setBadgeBackgroundColor({ color: "#d93025" });
+    chrome.action.setBadgeText({ text: command.text });
+  } else if (command.type === "persist") {
+    chrome.storage.local.set({
+      [UPDATE_STORAGE.releasedVersion]: command.releasedVersion,
+      [UPDATE_STORAGE.releaseUrl]: command.releaseUrl,
+      [UPDATE_STORAGE.lastCheckedAt]: command.lastCheckedAt,
+    });
+  } else if (command.type === "fetch-release") {
+    fetchLatestRelease();
+  } else if (command.type === "reload-extension") {
+    chrome.runtime.reload();
+  }
+}
+
+async function fetchLatestRelease() {
+  try {
+    const response = await fetch(RELEASE_ENDPOINT, {
+      headers: { Accept: "application/vnd.github+json" },
+    });
+    if (!response.ok) throw new Error(`GitHub 返回 HTTP ${response.status}`);
+    const release = await response.json();
+    if (!release.tag_name || !release.html_url) throw new Error("Release 信息不完整");
+    dispatchUpdate({
+      type: "check-succeeded",
+      now: Date.now(),
+      releasedVersion: release.tag_name,
+      releaseUrl: release.html_url,
+    });
+  } catch (error) {
+    dispatchUpdate({
+      type: "check-failed",
+      now: Date.now(),
+      reason: error.message || "无法连接 GitHub",
+    });
+  }
+}
+
+async function currentCaptureStatus() {
+  if (!(await hasOffscreenDocument())) return "inactive";
+  const status = await chrome.runtime
+    .sendMessage({ target: "offscreen", type: "get-capture-status" })
+    .catch(() => null);
+  const liveStatus = status?.liveStatus ?? "inactive";
+  const videoActive = Boolean(status?.videoActive) || videoCaptureSessions.size > 0;
+  return videoActive && liveStatus === "inactive"
+    ? "capturing"
+    : liveStatus;
+}
+
+function refreshUpdateCaptureStatus() {
+  ensureUpdateHost().then(async () => dispatchUpdate({
+    type: "capture-status-changed",
+    captureStatus: await currentCaptureStatus(),
+  }));
+}
+
+async function initializeUpdateHost() {
+  const stored = await chrome.storage.local.get(Object.values(UPDATE_STORAGE));
+  updateState = createUpdateState({
+    releasedVersion: stored[UPDATE_STORAGE.releasedVersion],
+    releaseUrl: stored[UPDATE_STORAGE.releaseUrl],
+    lastCheckedAt: stored[UPDATE_STORAGE.lastCheckedAt],
+  });
+  await chrome.alarms.create(UPDATE_ALARM, { periodInMinutes: 24 * 60 });
+  dispatchUpdate({
+    type: "host-started",
+    now: Date.now(),
+    runningVersion: chrome.runtime.getManifest().version,
+    captureStatus: await currentCaptureStatus(),
+  });
+}
+
+function ensureUpdateHost() {
+  updateHostInitialization ??= initializeUpdateHost();
+  return updateHostInitialization;
+}
 
 async function hasOffscreenDocument() {
   const existingContexts = await chrome.runtime.getContexts({
@@ -177,6 +282,15 @@ function handleHandshake(sender, sendResponse) {
 
 // offscreen 的字幕状态经这里转发给被捕获的标签页（唯一投递对象）
 function relaySubtitle(message) {
+  const liveStatus = message.state?.phase ?? message.state?.status;
+  if (liveStatus) {
+    ensureUpdateHost().then(() => dispatchUpdate({
+      type: "capture-status-changed",
+      captureStatus: videoCaptureSessions.size > 0 && liveStatus === "inactive"
+        ? "capturing"
+        : liveStatus,
+    }));
+  }
   if (capturedTabId === null) return;
   chrome.tabs
     .sendMessage(capturedTabId, {
@@ -313,6 +427,7 @@ async function stopVideoCapture(tabId, reason = "user-stop") {
   // 新视频建立新的 streamId。旧会话若有 AI 批量翻译仍会用其 sessionId 完成。
   if (videoCaptureSessions.get(tabId)?.sessionId === session.sessionId) {
     videoCaptureSessions.delete(tabId);
+    refreshUpdateCaptureStatus();
   }
   return { ok: true };
 }
@@ -349,6 +464,7 @@ async function startVideoCapture(message, sender) {
   const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
   const sessionId = createVideoSessionId(tabId, videoId);
   videoCaptureSessions.set(tabId, { sessionId, videoId });
+  refreshUpdateCaptureStatus();
   try {
     const response = await chrome.runtime.sendMessage({
       target: "offscreen",
@@ -366,6 +482,7 @@ async function startVideoCapture(message, sender) {
   } catch (error) {
     if (videoCaptureSessions.get(tabId)?.sessionId === sessionId) {
       videoCaptureSessions.delete(tabId);
+      refreshUpdateCaptureStatus();
     }
     throw error;
   }
@@ -523,6 +640,37 @@ async function handleVideoMessage(message, sender) {
 
 // 监听 popup 发来的控制指令
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "get-update-view") {
+    ensureUpdateHost()
+      .then(async () => {
+        dispatchUpdate({
+          type: "capture-status-changed",
+          captureStatus: await currentCaptureStatus(),
+        });
+        sendResponse({ ok: true, data: updateState.view });
+      })
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "user-requested-update-check") {
+    ensureUpdateHost()
+      .then(() => sendResponse({
+        ok: true,
+        data: dispatchUpdate({ type: "user-requested-check", now: Date.now() }),
+      }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "user-requested-extension-reload") {
+    ensureUpdateHost()
+      .then(() => dispatchUpdate({ type: "user-requested-reload" }))
+      .catch(() => {});
+    sendResponse({ ok: true });
+    return;
+  }
+
   if (
     [
       "video-state-update",
@@ -562,7 +710,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "video-asr-session-ended") {
     const session = videoCaptureSessions.get(message.tabId);
-    if (session?.sessionId === message.sessionId) videoCaptureSessions.delete(message.tabId);
+    if (session?.sessionId === message.sessionId) {
+      videoCaptureSessions.delete(message.tabId);
+    }
+    // service worker 可能在视频会话期间重启，此时内存 map 为空；无论是否
+    // 找到条目都从 offscreen 的权威状态重算，保证停止后按钮立即恢复。
+    refreshUpdateCaptureStatus();
     return;
   }
 
@@ -574,17 +727,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "open-options") {
-    chrome.runtime.openOptionsPage()
+    const openOptions = message.section
+      ? chrome.tabs.create({ url: chrome.runtime.getURL(`options.html#${message.section}`) })
+      : chrome.runtime.openOptionsPage();
+    openOptions
       .then(() => sendResponse({ ok: true }))
       .catch((error) => sendResponse({ ok: false, error: error.message || "无法打开设置页。" }));
     return true;
   }
 
   // offscreen 的会话终止通知转发给浮层（一次性提示，浮层随即移除）
-  if (message.type === "session-ended" && capturedTabId !== null) {
-    const tabId = capturedTabId;
-    capturedTabId = null;
-    chrome.tabs.sendMessage(tabId, { type: "subtitle-stop", reason: message.reason }).catch(() => {});
+  if (message.type === "session-ended") {
+    if (capturedTabId !== null) {
+      const tabId = capturedTabId;
+      capturedTabId = null;
+      chrome.tabs.sendMessage(tabId, { type: "subtitle-stop", reason: message.reason }).catch(() => {});
+    }
+    refreshUpdateCaptureStatus();
     return;
   }
 
@@ -600,3 +759,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     stopCapture();
   }
 });
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== UPDATE_ALARM) return;
+  ensureUpdateHost().then(() => dispatchUpdate({
+    type: "alarm-fired",
+    now: Date.now(),
+  }));
+});
+
+ensureUpdateHost().catch((error) => console.warn("更新检查初始化失败:", error));

@@ -26,13 +26,21 @@
 ## 快速开始
 
 ```sh
-npm install
-npm run build   # esbuild 把各入口打包到 dist/
+git clone https://github.com/Fluxwang/CapSage.git
 ```
 
-然后在 Chrome 里打开 `chrome://extensions`，开启「开发者模式」，选择「加载已解压的扩展程序」，指向本仓库根目录。
+然后在 Chrome 里打开 `chrome://extensions`，开启「开发者模式」，选择「加载已解压的扩展程序」，指向克隆下来的仓库根目录。仓库已经包含构建产物，使用者不需要安装 Node 或运行构建命令。
 
 首次使用需要在扩展设置页（点击工具栏图标 → ⚙）里填入 AssemblyAI API Key（两个场景共用一把），并按提示下载对应语言对的 Chrome 内置翻译模型。视频字幕场景若要使用 AI 模型翻译引擎或总结/仿写功能，还需额外配置 Base URL / API Key / 聊天模型（任何 OpenAI 兼容的 chat completions 接口均可）。
+
+### 更新
+
+有可用更新时，工具栏会显示红色角标，popup 品牌栏也会出现小红点。点击小红点进入设置页「关于」分区，然后严格按两步操作：
+
+1. 双击仓库根目录的 `update.bat` 完成拉取。脚本会让工作副本与远端 `main` 完全一致，因此被跟踪文件里的本地修改会被覆盖。
+2. 回到设置页点击「我已拉取，重载扩展」，让 Chrome 从磁盘重新载入代码。角标会在重载之后消失，而不是在拉取之后消失。
+
+脚本仅面向 Windows。macOS / Linux 用户可在仓库根目录运行 `git fetch origin main && git reset --hard origin/main`，再到设置页重载扩展。
 
 ## 开发
 
@@ -41,6 +49,14 @@ npm run watch   # esbuild 增量构建，改完手动去 chrome://extensions 重
 npm test        # node --test 跑 core/ 下的纯逻辑单元测试
 npm run check   # build + test
 ```
+
+日常 `build` / `watch` 会保留 sourcemap。发布必须从干净工作区执行唯一入口（需要已登录的 `git` 与 GitHub CLI）：
+
+```sh
+npm run release -- 0.2.0
+```
+
+该命令会同步更新 `manifest.json`、`package.json` 与锁文件版本，执行无 sourcemap 的发版构建，提交 `dist/`，创建并推送 `v` 前缀标签，最后创建带自动生成说明的 GitHub Release。不要手工打发布标签。
 
 ### 项目结构
 
@@ -71,6 +87,7 @@ CONTEXT.md             领域词汇表
 | `offscreen` | MV3 service worker 没有 `MediaRecorder`/`AudioContext`，转写与回放都跑在离屏文档里 |
 | `storage` | 保存 API Key、语言、引擎等设置 |
 | `scripting` | 按需向标签页注入脚本 |
+| `alarms` | 每 24 小时检查一次 GitHub 发布版本 |
 | `host_permissions: <all_urls>` | 直播实时场景要支持任意网站；TikTok 专属逻辑靠 URL match pattern 限定，不依赖这条权限收窄范围 |
 
 所有 API Key 只保存在 `chrome.storage.local`，不经过任何第三方服务器中转；AssemblyAI 按 WebSocket 连接时长计费，AI 翻译/总结引擎按你自己配置的接口计费。

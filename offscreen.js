@@ -148,6 +148,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
+  if (message.type === "get-capture-status") {
+    const activeStatuses = new Set(["capturing", "idle", "reconnecting"]);
+    sendResponse({
+      liveStatus: sessionState.status,
+      videoActive: [...videoSessions.values()].some((session) =>
+        activeStatuses.has(session.state.status)
+      ),
+    });
+    return;
+  }
+
   if (message.type === "start-capture") {
     apiKey = message.apiKey;
     // start-capture/open-socket 指令会在下方同步 dispatch 后立刻开始执行，

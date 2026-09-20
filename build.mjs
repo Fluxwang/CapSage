@@ -1,6 +1,12 @@
 import * as esbuild from "esbuild";
+import { readdir, unlink } from "node:fs/promises";
 
 const watch = process.argv.includes("--watch");
+const release = process.argv.includes("--release");
+
+if (watch && release) {
+  throw new Error("--watch 与 --release 不能同时使用");
+}
 
 const buildOptions = {
   bundle: true,
@@ -17,9 +23,18 @@ const buildOptions = {
   format: "iife",
   logLevel: "info",
   outdir: "dist",
-  sourcemap: true,
+  sourcemap: !release,
   target: ["chrome138"],
 };
+
+if (release) {
+  const entries = await readdir("dist").catch(() => []);
+  await Promise.all(
+    entries
+      .filter((entry) => entry.endsWith(".map"))
+      .map((entry) => unlink(`dist/${entry}`)),
+  );
+}
 
 const context = await esbuild.context(buildOptions);
 if (watch) {
